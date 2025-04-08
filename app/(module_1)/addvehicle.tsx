@@ -1,5 +1,5 @@
 import { 
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator 
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert 
 } from 'react-native';
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -97,7 +97,18 @@ const AddVehicle: React.FC = () => {
   };
 
   const handleChange = (key: keyof typeof formData, value: string) => {
-    setFormData((prev) => ({ ...prev, [key]: value }));
+    // Regex to validate YYYY/MM/DD format
+    const dateRegex = /^\d{4}\/\d{2}\/\d{2}$/;
+
+    if (key.includes('Expiry') || key.includes('Date') || key.includes('Till')) {
+      if (value === '' || dateRegex.test(value)) {
+        setFormData((prev) => ({ ...prev, [key]: value }));
+      } else {
+        Alert.alert('Invalid Date Format', 'Please enter the date in YYYY/MM/DD format.');
+      }
+    } else {
+      setFormData((prev) => ({ ...prev, [key]: value }));
+    }
   };
 
   const handleAddVehicle = async () => {

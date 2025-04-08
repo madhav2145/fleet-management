@@ -22,8 +22,12 @@ const Layout = () => {
             headerTitleAlign: 'center',
           }} 
         />
-        <Stack.Screen name="(home)" options={{ headerShown: false }} />
-      </Stack>
+        <Stack.Screen name="(module_1)" options={{ headerShown: false }} />
+        
+        <Stack.Screen name="(module_2)" options={{ headerShown: false }} />
+
+        <Stack.Screen name="(module_3)" options={{ headerShown: false }} />
+      </Stack>  
     </>
   )
 }

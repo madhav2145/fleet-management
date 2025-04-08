@@ -37,5 +37,5 @@ yarn-error.*
 
 app-example
 
-# Firebase config
-firebaseConfig.ts
+# Add .env to .gitignore
+.env

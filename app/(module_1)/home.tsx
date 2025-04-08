@@ -1,10 +1,13 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, BackHandler, Alert } from 'react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, useSegments } from 'expo-router';
 import { Bus, Calendar, Shield, FileCheck, Award, Ticket, PlusCircle } from 'lucide-react-native';
 import { getAllVehicles } from '../../backend/vehicleService';
-import { addDays, isBefore } from 'date-fns';
+import { addDays, isBefore, isAfter } from 'date-fns';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { signOut } from 'firebase/auth';
+import { auth } from '../../firebaseConfig';
 
 interface StatCardProps {
   label: string;
@@ -36,11 +39,12 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, onPress }
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       activeOpacity={0.7}
+      style={styles.statCardContainer}
     >
-      <Animated.View 
+      <Animated.View
         style={[
           styles.statCard,
-          { transform: [{ scale: scaleAnim }] }
+          { transform: [{ scale: scaleAnim }] },
         ]}
       >
         <View style={styles.statHeader}>
@@ -56,12 +60,13 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, onPress }
 const Home: React.FC = () => {
   interface Vehicle {
     id: string;
-    [key: string]: any; // Add other fields as necessary
+    [key: string]: any;
   }
-  
+
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const router = useRouter();
+  const segments = useSegments(); // Get the current route segments
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -70,6 +75,36 @@ const Home: React.FC = () => {
       useNativeDriver: true,
     }).start();
   }, []);
+
+  useEffect(() => {
+    const backAction = () => {
+      const currentRoute = segments.join('/'); // Get the current route as a string
+
+      if (currentRoute === '(module_1)/home') {
+        // If on the home page, show the minimize app dialog
+        Alert.alert('Minimize App', 'Do you want to minimize the app?', [
+          {
+            text: 'Cancel',
+            onPress: () => null,
+            style: 'cancel',
+          },
+          {
+            text: 'Yes',
+            onPress: () => BackHandler.exitApp(), // Minimize the app
+          },
+        ]);
+        return true; // Prevent default back button behavior
+      } else {
+        // Navigate back to the home page
+        router.replace('/(module_1)/home');
+        return true; // Prevent default back button behavior
+      }
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+    return () => backHandler.remove(); // Cleanup the event listener
+  }, [segments]);
 
   const fetchVehicles = async () => {
     try {
@@ -86,21 +121,33 @@ const Home: React.FC = () => {
     }, [])
   );
 
-  const handleStatCardPress = (type: string) => {
-    // Handle navigation or filtering based on the type
-    router.push({
-      pathname: '/(home)/search',
-      params: { filter: type.toUpperCase() }
-    });
-  };
-
   const filterVehiclesByExpiry = (expiryField: string) => {
     const today = new Date();
     const next30Days = addDays(today, 30);
-    return vehicles.filter(vehicle => {
+    return vehicles.filter((vehicle) => {
       const expiryDate = new Date(vehicle[expiryField]);
-      return isBefore(expiryDate, next30Days);
+      return (
+        (isBefore(expiryDate, next30Days) && isAfter(expiryDate, today)) ||
+        isBefore(expiryDate, today)
+      );
     }).length.toString();
+  };
+
+  const handleStatCardPress = (type: string) => {
+    router.push({
+      pathname: '/(module_1)/search', // Ensure the correct path to the search page
+      params: { filter: type }, // Pass the filter parameter
+    });
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      await AsyncStorage.removeItem('userToken');
+      router.replace('/');
+    } catch (error) {
+      console.error('Error logging out: ', error);
+    }
   };
 
   return (
@@ -108,57 +155,74 @@ const Home: React.FC = () => {
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         <View style={styles.headerContainer}>
           <Text style={styles.title}>Fleet Dashboard</Text>
-          <Text style={styles.subtitle}>Vehicle Management Overview</Text>
         </View>
 
-        <View style={styles.totalVehiclesCard}>
+        <TouchableOpacity
+          style={styles.totalVehiclesCard}
+          onPress={() => router.push('/(module_1)/search')}
+        >
           <Bus size={32} color="#FFFFFF" />
           <View style={styles.totalVehiclesContent}>
             <Text style={styles.totalVehiclesLabel}>Total Fleet Size</Text>
             <Text style={styles.totalVehiclesValue}>{vehicles.length}</Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>Upcoming Renewals</Text>
-        
+
         <View style={styles.gridContainer}>
+          {/* Row 1 */}
           <View style={styles.row}>
-            <StatCard 
-              label="Pollution Expiry" 
-              value={filterVehiclesByExpiry('pollutionExpiry')} 
-              icon={Calendar} 
-              onPress={() => handleStatCardPress('POLLUTION')} 
+            <StatCard
+              label="Pollution Expiry"
+              value={filterVehiclesByExpiry('pollutionExpiry')}
+              icon={Calendar}
+              onPress={() => handleStatCardPress('POLLUTION')} // Correct filter type
             />
-            <StatCard 
-              label="Insurance Expiry" 
-              value={filterVehiclesByExpiry('insuranceExpiry')} 
-              icon={Shield} 
-              onPress={() => handleStatCardPress('INSURANCE')} 
+            <StatCard
+              label="Insurance Expiry"
+              value={filterVehiclesByExpiry('insuranceExpiry')}
+              icon={Shield}
+              onPress={() => handleStatCardPress('INSURANCE')} // Correct filter type
             />
           </View>
-          <StatCard 
-            label="AITP Expiry" 
-            value={filterVehiclesByExpiry('aitpExpiry')} 
-            icon={FileCheck} 
-            onPress={() => handleStatCardPress('AITP')} 
-          />
-          <StatCard 
-            label="Fitness Expiry" 
-            value={filterVehiclesByExpiry('fitnessExpiry')} 
-            icon={Award} 
-            onPress={() => handleStatCardPress('FITNESS')} 
-          />
-          <StatCard 
-            label="Permit Expiry" 
-            value={filterVehiclesByExpiry('permitPaidTill1')} 
-            icon={Ticket} 
-            onPress={() => handleStatCardPress('PERMIT')} 
-          />
+
+          {/* Row 2 */}
+          <View style={styles.row}>
+            <StatCard
+              label="AITP Expiry"
+              value={filterVehiclesByExpiry('aitpExpiry')}
+              icon={FileCheck}
+              onPress={() => handleStatCardPress('AITP')} // Correct filter type
+            />
+            <StatCard
+              label="Fitness Expiry"
+              value={filterVehiclesByExpiry('fitnessExpiry')}
+              icon={Award}
+              onPress={() => handleStatCardPress('FITNESS')} // Correct filter type
+            />
+          </View>
+
+          {/* Row 3 */}
+          <View style={styles.row}>
+            <StatCard
+              label="1-Year Permit Expiry"
+              value={filterVehiclesByExpiry('permitPaidTill1')}
+              icon={Ticket}
+              onPress={() => handleStatCardPress('PERMIT_1_YEAR')} // Correct filter type
+            />
+            <StatCard
+              label="5-Year Permit Expiry"
+              value={filterVehiclesByExpiry('permitPaidTill2')}
+              icon={Ticket}
+              onPress={() => handleStatCardPress('PERMIT_5_YEAR')} // Correct filter type
+            />
+          </View>
         </View>
 
-        <TouchableOpacity 
-          style={styles.addButton} 
-          onPress={() => router.push('/(home)/addvehicle')}
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => router.push('/(module_1)/addvehicle')}
           activeOpacity={0.8}
         >
           <PlusCircle size={24} color="#FFFFFF" style={styles.addButtonIcon} />
@@ -169,52 +233,42 @@ const Home: React.FC = () => {
   );
 };
 
-// Keep the same styles from your original home page
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F0F4F8',
   },
   content: {
-    padding: 20,
+    padding: 16,
   },
   headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 24,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#0A3D91',
-    textAlign: 'left',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#5A7184',
-    marginTop: 4,
   },
   totalVehiclesCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#0A3D91',
-    padding: 20,
+    padding: 16,
     borderRadius: 12,
     marginBottom: 24,
-    shadowColor: '#0A3D91',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
   },
   totalVehiclesContent: {
     marginLeft: 16,
   },
   totalVehiclesLabel: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#FFFFFF',
-    opacity: 0.9,
   },
   totalVehiclesValue: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginTop: 4,
@@ -229,20 +283,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginHorizontal: 0,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '70%',
-    paddingLeft: 40,
+    width: '100%',
+    marginBottom: 8,
+  },
+  statCardContainer: {
+    width: '48%',
+    marginBottom: 8,
   },
   statCard: {
-    width: '85%',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
-    marginVertical: 6,
+    minHeight: 120,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -253,7 +309,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   statLabel: {
     fontSize: 14,
@@ -267,24 +323,18 @@ const styles = StyleSheet.create({
   addButton: {
     flexDirection: 'row',
     backgroundColor: '#D01C1F',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    padding: 16,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 24,
-    shadowColor: '#D01C1F',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    marginTop: 16,
   },
   addButtonIcon: {
     marginRight: 8,
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
   },
 });

@@ -1,18 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { 
-View, Text, TouchableOpacity, StyleSheet, TextInput, 
-  SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator 
+  View, Text, TouchableOpacity, StyleSheet, TextInput, 
+  SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView 
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { signUp } from '../authService';
+import { Eye, EyeOff } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SignUp: React.FC = () => {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [selectedModule, setSelectedModule] = useState<'module_1' | 'module_2' | 'module_3'>('module_1');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
 
   useEffect(() => {
     if (error) {
@@ -31,10 +37,27 @@ const SignUp: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await signUp(email, password);
+      console.log('Signing up with:', { email, selectedModule }); // Debug log
+
+      // Call the updated signUp function
+      const user = await signUp(email, password, selectedModule);
+
+      // Save the user token to AsyncStorage
+      await AsyncStorage.setItem('userToken', user.email);
+
       setIsSubmitting(false);
-      router.push('/home'); 
+
+      // Route to the appropriate module's home page
+      router.push({
+        pathname:
+          selectedModule === 'module_1'
+            ? '/(module_1)/home'
+            : selectedModule === 'module_2'
+            ? '/(module_2)/home'
+            : '/(module_3)/home',
+      });
     } catch (error) {
+      console.error('Sign-up error:', error); // Log the error
       setError('Failed to sign up. Please try again.');
       setIsSubmitting(false);
     }
@@ -46,73 +69,90 @@ const SignUp: React.FC = () => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoid}
       >
-        <Text style={styles.title}>Create an Account</Text>
-        <Text style={styles.subtitle}>Join FleetTracker today!</Text>
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <Text style={styles.title}>Create an Account</Text>
+          <Text style={styles.subtitle}>Join FleetTracker today!</Text>
 
-        <View style={styles.formContainer}>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="you@example.com"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholderTextColor="#8B9EB0"
-            />
-          </View>
+          <View style={styles.formContainer}>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                style={[styles.input, { color: '#000' }]}
+                placeholder="you@example.com"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor="#8B9EB0"
+              />
+            </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholderTextColor="#8B9EB0"
-            />
-          </View>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={[styles.passwordInput, { color: '#000' }]} 
+                  placeholder="Enter your password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!passwordVisible}
+                  placeholderTextColor="#8B9EB0"
+                />
+                <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)} style={styles.eyeIcon}>
+                  {passwordVisible ? <EyeOff size={20} color="#8B9EB0" /> : <Eye size={20} color="#8B9EB0" />}
+                </TouchableOpacity>
+              </View>
+            </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Confirm Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Re-enter your password"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-              placeholderTextColor="#8B9EB0"
-            />
-          </View>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Confirm Password</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={[styles.passwordInput, { color: '#000' }]} 
+                  placeholder="Re-enter your password"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!confirmPasswordVisible}
+                  placeholderTextColor="#8B9EB0"
+                />
+                <TouchableOpacity onPress={() => setConfirmPasswordVisible(!confirmPasswordVisible)} style={styles.eyeIcon}>
+                  {confirmPasswordVisible ? <EyeOff size={20} color="#8B9EB0" /> : <Eye size={20} color="#8B9EB0" />}
+                </TouchableOpacity>
+              </View>
+            </View>
 
-          <TouchableOpacity 
-            style={styles.signupButton} 
-            onPress={handleSignUp}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.signupButtonText}>Sign Up</Text>}
-          </TouchableOpacity>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Select Module</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedModule}
+                  onValueChange={(itemValue) => setSelectedModule(itemValue)}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Module 1" value="module_1" />
+                  <Picker.Item label="Module 2" value="module_2" />
+                  <Picker.Item label="Module 3" value="module_3" /> 
+                </Picker>
+              </View>
+            </View>
 
-          <View style={styles.helpContainer}>
-            <Text style={styles.helpText}>Need assistance? </Text>
-            <TouchableOpacity>
-              <Text style={styles.helpLink}>Contact Support</Text>
+            <TouchableOpacity 
+              style={styles.signupButton} 
+              onPress={handleSignUp}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.signupButtonText}>Sign Up</Text>}
             </TouchableOpacity>
-          </View>
-        </View>
 
-        <View style={styles.busIconContainer}>
-          <View style={styles.busLine}></View>
-          <View style={styles.busIcon}>
-            <View style={styles.busBody}></View>
-            <View style={styles.busWindow}></View>
-            <View style={styles.busWheel1}></View>
-            <View style={styles.busWheel2}></View>
+            <View style={styles.helpContainer}>
+              <Text style={styles.helpText}>Need assistance? </Text>
+              <TouchableOpacity>
+                <Text style={styles.helpLink}>Contact Support</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -125,6 +165,9 @@ const styles = StyleSheet.create({
   },
   keyboardAvoid: {
     flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: 20,
   },
@@ -170,6 +213,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#F7FAFC',
   },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderColor: '#E1E8ED',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    backgroundColor: '#F7FAFC',
+  },
+  passwordInput: {
+    flex: 1,
+    height: 50,
+    fontSize: 16,
+    paddingLeft: 0,
+  },
+  eyeIcon: {
+    marginLeft: 10,
+  },
+  pickerContainer: {
+    borderColor: '#E1E8ED',
+    borderWidth: 1,
+    borderRadius: 8,
+    backgroundColor: '#F7FAFC',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
+  },
   signupButton: {
     backgroundColor: '#D01C1F',
     borderRadius: 8,
@@ -198,64 +269,12 @@ const styles = StyleSheet.create({
     color: '#0A3D91',
     fontWeight: 'bold',
   },
-  busIconContainer: {
-    alignItems: 'center',
-    marginTop: 30,
-    position: 'relative',
-  },
-  busLine: {
-    height: 2,
-    backgroundColor: '#D8DEE5',
-    width: '80%',
-    position: 'absolute',
-    bottom: 10,
-  },
-  busIcon: {
-    width: 80,
-    height: 40,
-    position: 'relative',
-  },
-  busBody: {
-    width: 80,
-    height: 25,
-    backgroundColor: '#D01C1F',
-    borderRadius: 5,
-    position: 'absolute',
-    top: 0,
-  },
-  busWindow: {
-    width: 20,
-    height: 12,
-    backgroundColor: '#0A3D91',
-    position: 'absolute',
-    top: 5,
-    left: 10,
-    borderRadius: 2,
-  },
-  busWheel1: {
-    width: 12,
-    height: 12,
-    backgroundColor: '#333',
-    borderRadius: 6,
-    position: 'absolute',
-    bottom: 0,
-    left: 15,
-  },
-  busWheel2: {
-    width: 12,
-    height: 12,
-    backgroundColor: '#333',
-    borderRadius: 6,
-    position: 'absolute',
-    bottom: 0,
-    right: 15,
-  },
   error: {
     color: '#D01C1F',
     fontSize: 14,
     marginBottom: 10,
     textAlign: 'center',
-  }
+  },
 });
 
 export default SignUp;

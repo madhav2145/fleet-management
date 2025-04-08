@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TouchableOpacity, StyleSheet, TextInput, 
-  Image, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator 
+  Image, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, BackHandler 
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { signIn } from '../authService';
+import { Eye, EyeOff } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Login: React.FC = () => {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [selectedModule, setSelectedModule] = useState<'module_1' | 'module_2' | 'module_3'>('module_1');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
 
   useEffect(() => {
     if (error) {
@@ -22,12 +27,41 @@ const Login: React.FC = () => {
     }
   }, [error]);
 
+  useEffect(() => {
+    const backAction = () => {
+      // Navigate to the index page when the back button is pressed
+      router.replace('..'); // Ensure the correct path to the index page
+      return true; // Prevent the default back action
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+    return () => backHandler.remove(); // Cleanup the event listener
+  }, []);
+
   const handleSignIn = async () => {
     setIsSubmitting(true);
     try {
-      await signIn(email, password);
+      const user = await signIn(email, password);
+      if ((user && user.module !== selectedModule) && user.role !== 'admin') {
+        setError('You do not have access to this module.');
+        setIsSubmitting(false);
+        return;
+      }
+      if (user) {
+        await AsyncStorage.setItem('userToken', user.email);
+      }
       setIsSubmitting(false);
-      router.push('/home');
+
+      // Route to the appropriate module's home page
+      router.replace({
+        pathname:
+          selectedModule === 'module_1'
+            ? '/(module_1)/home'
+            : selectedModule === 'module_2'
+            ? '/(module_2)/home'
+            : '/(module_3)/home',
+      });
     } catch (error) {
       setError('Please check your email and password.');
       setIsSubmitting(false);
@@ -40,71 +74,94 @@ const Login: React.FC = () => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoid}
       >
-        <View style={styles.logoContainer}>
-          <View style={styles.logoSquare}>
-            <Image 
-              source={require('../assets/images/logo.png')} 
-              style={styles.logo} 
-            />
-          </View>
-          <Text style={styles.companyName}>FleetTracker</Text>
-        </View>
-        
-        <Text style={styles.title}>User Login</Text>
-        <Text style={styles.subtitle}>Access your bus management dashboard</Text>
-        
-        <View style={styles.formContainer}>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="driver@company.com"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholderTextColor="#8B9EB0"
-            />
+        <View style={styles.contentContainer}>
+          <View style={styles.logoContainer}>
+            <View style={styles.logoSquare}>
+              <Image 
+                source={require('../assets/images/logo.png')} 
+                style={styles.logo} 
+              />
+            </View>
+            <Text style={styles.companyName}>FleetTracker</Text>
           </View>
           
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholderTextColor="#8B9EB0"
-            />
-          </View>
+          <Text style={styles.title}>User Login</Text>
+          <Text style={styles.subtitle}>Access your bus management dashboard</Text>
           
-          <Text style={styles.forgotPassword}>Forgot Password?</Text>
-          
-          <TouchableOpacity 
-            style={styles.loginButton} 
-            onPress={handleSignIn}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>Access Dashboard</Text>}
-          </TouchableOpacity>
-          
-          <View style={styles.helpContainer}>
-            <Text style={styles.helpText}>Need assistance? </Text>
-            <TouchableOpacity>
-              <Text style={styles.helpLink}>Contact Support</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+          <View style={styles.formContainer}>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                style={[styles.input, { color: '#000' }]}
+                placeholder="driver@company.com"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor="#8B9EB0"
+              />
+            </View>
+            
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={[styles.passwordInput, { color: '#000' }]}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!passwordVisible}
+                  placeholderTextColor="#8B9EB0"
+                />
+                <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)} style={styles.eyeIcon}>
+                  {passwordVisible ? <EyeOff size={20} color="#8B9EB0" /> : <Eye size={20} color="#8B9EB0" />}
+                </TouchableOpacity>
+              </View>
+            </View>
 
-        <View style={styles.busIconContainer}>
-          <View style={styles.busLine}></View>
-          <View style={styles.busIcon}>
-            <View style={styles.busBody}></View>
-            <View style={styles.busWindow}></View>
-            <View style={styles.busWheel1}></View>
-            <View style={styles.busWheel2}></View>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Select Module</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedModule}
+                  onValueChange={(itemValue) => setSelectedModule(itemValue)}
+                  style={styles.picker}
+                  itemStyle={styles.pickerItem}
+                >
+                  <Picker.Item label="Module 1" value="module_1" />
+                  <Picker.Item label="Module 2" value="module_2" />
+                  <Picker.Item label="Module 3" value="module_3" />
+                </Picker>
+              </View>
+            </View>
+            
+            <Text style={styles.forgotPassword}>Forgot Password?</Text>
+            
+            <TouchableOpacity 
+              style={styles.loginButton} 
+              onPress={handleSignIn}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>Access Dashboard</Text>}
+            </TouchableOpacity>
+            
+            <View style={styles.helpContainer}>
+              <Text style={styles.helpText}>Need assistance? </Text>
+              <TouchableOpacity>
+                <Text style={styles.helpLink}>Contact Support</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.busIconContainer}>
+            <View style={styles.busLine}></View>
+            <View style={styles.busIcon}>
+              <View style={styles.busBody}></View>
+              <View style={styles.busWindow}></View>
+              <View style={styles.busWheel1}></View>
+              <View style={styles.busWheel2}></View>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -119,34 +176,37 @@ const styles = StyleSheet.create({
   },
   keyboardAvoid: {
     flex: 1,
+  },
+  contentContainer: {
+    flex: 1,
     justifyContent: 'center',
-    padding: 20,
+    padding: 15, // Reduced padding
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 25,
+    marginBottom: 5, // Reduced margin
   },
   logoSquare: {
-    width: 70,
-    height: 80,
+    width: 60,
+    height: 70,
     backgroundColor: '#0A3D91',
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
   logo: {
-    width: 90,
-    height: 80,
+    width: 80,
+    height: 70,
     resizeMode: 'contain',
   },
   companyName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#0A3D91',
-    marginTop: 10,
+    marginTop: 5,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#0A3D91',
     textAlign: 'center',
@@ -155,12 +215,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#5A7184',
     textAlign: 'center',
-    marginBottom: 25,
+    marginBottom: 5,
   },
   formContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 20,
+    padding: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -170,7 +230,7 @@ const styles = StyleSheet.create({
     borderLeftColor: '#D01C1F',
   },
   inputContainer: {
-    marginBottom: 15,
+    marginBottom: 10,
   },
   inputLabel: {
     fontSize: 14,
@@ -179,13 +239,47 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   input: {
-    height: 50,
+    height: 45,
     borderColor: '#E1E8ED',
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 15,
     fontSize: 16,
     backgroundColor: '#F7FAFC',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderColor: '#E1E8ED',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    backgroundColor: '#F7FAFC',
+  },
+  passwordInput: {
+    flex: 1,
+    height: 45,
+    fontSize: 16,
+    paddingLeft: 0,
+  },
+  eyeIcon: {
+    marginLeft: 10,
+  },
+  pickerContainer: {
+    borderColor: '#E1E8ED',
+    borderWidth: 1,
+    borderRadius: 8,
+    backgroundColor: '#F7FAFC',
+    height: 50, // Increased height
+    justifyContent: 'center', // Center the text vertically
+  },
+  picker: {
+    height: 50, // Increased height
+    width: '100%',
+  },
+  pickerItem: {
+    fontSize: 14, // Reduced font size for Picker items
+    height: 50, // Ensure the height is consistent with other inputs
   },
   error: {
     fontSize: 14,
@@ -197,15 +291,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#D01C1F',
     textAlign: 'right',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   loginButton: {
     backgroundColor: '#D01C1F',
     borderRadius: 8,
-    height: 55,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   loginButtonText: {
     color: '#FFFFFF',
@@ -229,7 +323,7 @@ const styles = StyleSheet.create({
   },
   busIconContainer: {
     alignItems: 'center',
-    marginTop: 30,
+    marginTop: 20, // Increased margin
     position: 'relative',
   },
   busLine: {
@@ -240,12 +334,12 @@ const styles = StyleSheet.create({
     bottom: 10,
   },
   busIcon: {
-    width: 80,
-    height: 40,
+    width: 70,
+    height: 35,
     position: 'relative',
   },
   busBody: {
-    width: 80,
+    width: 70,
     height: 25,
     backgroundColor: '#D01C1F',
     borderRadius: 5,
