@@ -17,6 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import Details from '../components/details_1';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage to persist the last notification date
+import messaging from '@react-native-firebase/messaging';
 
 interface Vehicle {
   id: string;
@@ -71,17 +72,34 @@ const NotificationsPage: React.FC = () => {
 
   // Request notification permissions
   const requestNotificationPermissions = async () => {
-    const { status } = await Notifications.requestPermissionsAsync();
-    console.log('Notification Permission Status:', status); // Log the status
-    if (status !== 'granted') {
+    const authStatus = await messaging().requestPermission();
+    const enabled =
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+    if (enabled) {
+      console.log('Notification permissions granted.');
+    } else {
       Alert.alert('Permission Denied', 'You need to enable notifications to receive alerts.');
     }
   };
 
-  // Check for expiring vehicles and send notifications
-  const checkAndSendNotifications = useCallback(async () => {
+  // Get FCM token
+  const getFCMToken = async () => {
+    try {
+      const token = await messaging().getToken();
+      console.log('FCM Token:', token);
+      // Send the token to your backend server for later use
+    } catch (error) {
+      console.error('Error retrieving FCM token:', error);
+    }
+  };
+
+  // Schedule notifications for vehicle expiry
+  const scheduleVehicleExpiryNotifications = async () => {
     const today = new Date();
     const next30Days = addDays(today, 30);
+    const next15Days = addDays(today, 15); // For AITP expiry
     const uniqueKey = 'lastNotificationDate_Module1'; // Unique key for Module 1
 
     // Retrieve the last notification date from AsyncStorage
@@ -97,12 +115,14 @@ const NotificationsPage: React.FC = () => {
     // Check if any vehicle is about to expire
     let isVehicleExpiring = false;
 
-    for (const filterKey of Object.values(filterParamToKey)) {
+    for (const [key, filterKey] of Object.entries(filterParamToKey)) {
       if (!filterKey) continue; // Skip null filters
+
+      const expiryThreshold = key === 'AITP' ? next15Days : next30Days; // Use 15 days for AITP, 30 days for others
 
       isVehicleExpiring = vehicles.some((vehicle) => {
         const expiryDate = vehicle[filterKey] ? new Date(vehicle[filterKey]) : null;
-        return expiryDate && isBefore(expiryDate, next30Days) && isAfter(expiryDate, today);
+        return expiryDate && isBefore(expiryDate, expiryThreshold) && isAfter(expiryDate, today);
       });
 
       if (isVehicleExpiring) {
@@ -112,12 +132,14 @@ const NotificationsPage: React.FC = () => {
 
     if (isVehicleExpiring) {
       try {
-        await Notifications.scheduleNotificationAsync({
-          content: {
+        await messaging().sendMessage({
+          notification: {
             title: 'Expiring Vehicles Alert',
             body: 'Some of your vehicles are about to expire soon. Please check the app for details.',
           },
-          trigger: null, // Send immediately
+          fcmOptions: {
+            analyticsLabel: 'ExpiringVehiclesAlert',
+          },
         });
         console.log('Notification scheduled for expiring vehicles in Module 1.');
 
@@ -129,7 +151,7 @@ const NotificationsPage: React.FC = () => {
     } else {
       console.log('No vehicles are expiring soon in Module 1.');
     }
-  }, [vehicles]);
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -138,21 +160,40 @@ const NotificationsPage: React.FC = () => {
       const checkNotifications = async () => {
         if (!isNotificationChecked) {
           isNotificationChecked = true;
-          await checkAndSendNotifications();
+          await scheduleVehicleExpiryNotifications();
         }
       };
 
       fetchVehicles();
       requestNotificationPermissions();
+      getFCMToken();
       checkNotifications();
-    }, [checkAndSendNotifications])
+    }, [scheduleVehicleExpiryNotifications])
   );
 
   useEffect(() => {
     if (vehicles.length > 0) {
-      checkAndSendNotifications();
+      scheduleVehicleExpiryNotifications();
     }
-  }, [vehicles]); // Removed `checkAndSendNotifications` from dependencies
+  }, [vehicles]); // Removed `scheduleVehicleExpiryNotifications` from dependencies
+
+  // Handle foreground notifications
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async (remoteMessage) => {
+      Alert.alert('New Notification', remoteMessage.notification?.body || 'You have a new message.');
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    // Request notification permissions and get FCM token
+    requestNotificationPermissions();
+    getFCMToken();
+
+    // Schedule notifications for vehicle expiry
+    scheduleVehicleExpiryNotifications();
+  }, []);
 
   const handleFilterChange = (value: keyof Vehicle | null) => {
     setSelectedFilter(value);
@@ -186,26 +227,6 @@ const NotificationsPage: React.FC = () => {
   if (selectedVehicleId) {
     return <Details id={selectedVehicleId} onBack={() => setSelectedVehicleId(null)} />;
   }
- // Updated testNotification function
-//  const testNotification = async () => {
-//   const { status } = await Notifications.requestPermissionsAsync();
-//     console.log('Notification Permission Status:', status); // Log the status
-//     if (status !== 'granted') {
-//       Alert.alert('Permission Denied', 'You need to enable notifications to receive alerts.');
-//     }
-//       try {
-//         await Notifications.scheduleNotificationAsync({
-//           content: {
-//             title: 'Look at that notification',
-//             body: "I'm so proud of myself!",
-//           },
-//           trigger: null, // Send immediately
-//         });
-//         console.log('Notification scheduled successfully');
-//       } catch (error) {
-//         console.error('Error scheduling notification:', error);
-//       }
-//     };
 
   return (
     <View style={styles.container}>
@@ -246,13 +267,6 @@ const NotificationsPage: React.FC = () => {
           </Text>
         </TouchableOpacity>
       )}
-
-      {/* <TouchableOpacity
-        style={{ padding: 10, backgroundColor: 'blue', margin: 10 }}
-        onPress={testNotification}
-      >
-        <Text style={{ color: 'white' }}>Send Test Notification</Text>
-      </TouchableOpacity> */}
 
       {isLoading ? (
         <View style={styles.loadingContainer}>

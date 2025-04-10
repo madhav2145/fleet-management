@@ -1,6 +1,12 @@
 import React from 'react'
 import { Text, View, StyleSheet, TouchableOpacity } from 'react-native'
 import { useRouter } from 'expo-router'
+import messaging from '@react-native-firebase/messaging';
+
+// Handle background notifications
+messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+  console.log('Message handled in the background:', remoteMessage);
+});
 
 const Index = () => {
   const router = useRouter();
