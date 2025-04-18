@@ -1,10 +1,12 @@
+
+
 {
   "expo": {
-    "name": "Project_Expo",
-    "slug": "Project_Expo",
+    "name": "RKT Insight",
+    "slug": "RKT_Insight",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/app_logo.png", 
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,10 +18,10 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/app_logo.png", 
         "backgroundColor": "#ffffff"
       },
-      "package": "com.madhav222.Project_Expo",
+      "package": "com.madhav222.RKT_Insight",
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.SCHEDULE_EXACT_ALARM"
@@ -28,7 +30,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/app_logo.png"
     },
     "plugins": [
       "expo-router",

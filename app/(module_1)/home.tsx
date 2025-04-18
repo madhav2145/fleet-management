@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, BackHandler, Alert } from 'react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter, useSegments } from 'expo-router';
-import { Bus, Calendar, Shield, FileCheck, Award, Ticket, PlusCircle } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { getAllVehicles } from '../../backend/vehicleService';
 import { addDays, isBefore, isAfter } from 'date-fns';
 import { useFocusEffect } from '@react-navigation/native';
@@ -12,11 +12,11 @@ import { auth } from '../../firebaseConfig';
 interface StatCardProps {
   label: string;
   value: string;
-  icon: React.ElementType;
+  icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, onPress }) => {
+const StatCard: React.FC<StatCardProps> = ({ label, value, icon, onPress }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -48,7 +48,7 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, onPress }
         ]}
       >
         <View style={styles.statHeader}>
-          <Icon size={24} color="#0A3D91" />
+          <Ionicons name={icon} size={24} color="#0A3D91" />
           <Text style={styles.statValue}>{value}</Text>
         </View>
         <Text style={styles.statLabel}>{label}</Text>
@@ -66,7 +66,7 @@ const Home: React.FC = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const router = useRouter();
-  const segments = useSegments(); // Get the current route segments
+  const segments = useSegments();
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -78,10 +78,9 @@ const Home: React.FC = () => {
 
   useEffect(() => {
     const backAction = () => {
-      const currentRoute = segments.join('/'); // Get the current route as a string
+      const currentRoute = segments.join('/');
 
       if (currentRoute === '(module_1)/home') {
-        // If on the home page, show the minimize app dialog
         Alert.alert('Minimize App', 'Do you want to minimize the app?', [
           {
             text: 'Cancel',
@@ -90,20 +89,19 @@ const Home: React.FC = () => {
           },
           {
             text: 'Yes',
-            onPress: () => BackHandler.exitApp(), // Minimize the app
+            onPress: () => BackHandler.exitApp(),
           },
         ]);
-        return true; // Prevent default back button behavior
+        return true;
       } else {
-        // Navigate back to the home page
         router.replace('/(module_1)/home');
-        return true; // Prevent default back button behavior
+        return true;
       }
     };
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
 
-    return () => backHandler.remove(); // Cleanup the event listener
+    return () => backHandler.remove();
   }, [segments]);
 
   const fetchVehicles = async () => {
@@ -135,8 +133,8 @@ const Home: React.FC = () => {
 
   const handleStatCardPress = (type: string) => {
     router.push({
-      pathname: '/(module_1)/search', // Ensure the correct path to the search page
-      params: { filter: type }, // Pass the filter parameter
+      pathname: '/(module_1)/search',
+      params: { filter: type },
     });
   };
 
@@ -161,7 +159,7 @@ const Home: React.FC = () => {
           style={styles.totalVehiclesCard}
           onPress={() => router.push('/(module_1)/search')}
         >
-          <Bus size={32} color="#FFFFFF" />
+          <Ionicons name="bus" size={32} color="#FFFFFF" />
           <View style={styles.totalVehiclesContent}>
             <Text style={styles.totalVehiclesLabel}>Total Fleet Size</Text>
             <Text style={styles.totalVehiclesValue}>{vehicles.length}</Text>
@@ -171,51 +169,48 @@ const Home: React.FC = () => {
         <Text style={styles.sectionTitle}>Upcoming Renewals</Text>
 
         <View style={styles.gridContainer}>
-          {/* Row 1 */}
           <View style={styles.row}>
             <StatCard
               label="Pollution Expiry"
               value={filterVehiclesByExpiry('pollutionExpiry')}
-              icon={Calendar}
-              onPress={() => handleStatCardPress('POLLUTION')} // Correct filter type
+              icon="calendar"
+              onPress={() => handleStatCardPress('POLLUTION')}
             />
             <StatCard
               label="Insurance Expiry"
               value={filterVehiclesByExpiry('insuranceExpiry')}
-              icon={Shield}
-              onPress={() => handleStatCardPress('INSURANCE')} // Correct filter type
+              icon="shield-checkmark"
+              onPress={() => handleStatCardPress('INSURANCE')}
             />
           </View>
 
-          {/* Row 2 */}
           <View style={styles.row}>
             <StatCard
               label="AITP Expiry"
               value={filterVehiclesByExpiry('aitpExpiry')}
-              icon={FileCheck}
-              onPress={() => handleStatCardPress('AITP')} // Correct filter type
+              icon="document-text"
+              onPress={() => handleStatCardPress('AITP')}
             />
             <StatCard
               label="Fitness Expiry"
               value={filterVehiclesByExpiry('fitnessExpiry')}
-              icon={Award}
-              onPress={() => handleStatCardPress('FITNESS')} // Correct filter type
+              icon="medal"
+              onPress={() => handleStatCardPress('FITNESS')}
             />
           </View>
 
-          {/* Row 3 */}
           <View style={styles.row}>
             <StatCard
               label="1-Year Permit Expiry"
               value={filterVehiclesByExpiry('permitPaidTill1')}
-              icon={Ticket}
-              onPress={() => handleStatCardPress('PERMIT_1_YEAR')} // Correct filter type
+              icon="ticket"
+              onPress={() => handleStatCardPress('PERMIT_1_YEAR')}
             />
             <StatCard
               label="5-Year Permit Expiry"
               value={filterVehiclesByExpiry('permitPaidTill2')}
-              icon={Ticket}
-              onPress={() => handleStatCardPress('PERMIT_5_YEAR')} // Correct filter type
+              icon="ticket"
+              onPress={() => handleStatCardPress('PERMIT_5_YEAR')}
             />
           </View>
         </View>
@@ -225,7 +220,7 @@ const Home: React.FC = () => {
           onPress={() => router.push('/(module_1)/addvehicle')}
           activeOpacity={0.8}
         >
-          <PlusCircle size={24} color="#FFFFFF" style={styles.addButtonIcon} />
+          <Ionicons name="add-circle" size={24} color="#FFFFFF" style={styles.addButtonIcon} />
           <Text style={styles.addButtonText}>Add New Vehicle</Text>
         </TouchableOpacity>
       </Animated.View>

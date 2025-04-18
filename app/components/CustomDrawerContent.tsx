@@ -1,15 +1,29 @@
 import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
 import { View, Text, StyleSheet, Alert, TouchableOpacity, Image } from 'react-native';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CustomDrawerContent = (props: any) => {
   const router = useRouter();
+  const [user, setUser] = useState({ name: 'John Doe', email: 'johndoe@example.com' });
 
-  console.log('CustomDrawerContent props:', props); // Debugging props
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('userData'); // Example key
+        if (userData) {
+          setUser(JSON.parse(userData));
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+
+    fetchUserData();
+  }, []);
 
   const handleLogout = async () => {
     Alert.alert(
@@ -22,16 +36,12 @@ const CustomDrawerContent = (props: any) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Sign out the user from Firebase
               await signOut(auth);
-
-              // Clear any stored user session (if applicable)
               await AsyncStorage.removeItem('userToken');
-
-              // Replace the current route with the login page
               router.replace('/login');
             } catch (error) {
               console.error('Error logging out: ', error);
+              Alert.alert('Error', 'Failed to log out. Please try again.');
             }
           },
         },
@@ -45,13 +55,13 @@ const CustomDrawerContent = (props: any) => {
       {/* Header Section */}
       <View style={styles.header}>
         <Image
-          source={require('../../assets/favicon.png')} 
+          source={require('../../assets/favicon.png')}
           style={styles.profileImage}
           resizeMode="cover"
-          onError={() => console.log('Image failed to load')} 
+          onError={(error) => console.error('Failed to load profile image:', error.nativeEvent.error)}
         />
-        <Text style={styles.username}>John Doe/</Text> 
-        <Text style={styles.email}>johndoe@example.com</Text> 
+        <Text style={styles.username}>{user.name}</Text>
+        <Text style={styles.email}>{user.email}</Text>
       </View>
 
       {/* Drawer Items */}
@@ -80,9 +90,9 @@ const styles = StyleSheet.create({
   profileImage: {
     width: 80,
     height: 80,
-    borderRadius: 40, // Makes the image circular
+    borderRadius: 40,
     marginBottom: 10,
-    backgroundColor: '#E2E8F0', // Adds a background color to avoid flickering
+    backgroundColor: '#E2E8F0',
   },
   username: {
     fontSize: 18,
@@ -102,14 +112,13 @@ const styles = StyleSheet.create({
   logoutButton: {
     paddingVertical: 12,
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8, // Smooth edges
-    elevation: 2, // Optional: Adds a shadow effect
+    backgroundColor: '#D01C1F',
+    borderRadius: 8,
   },
   logoutLabel: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#D01C1F',
+    color: '#FFFFFF',
   },
 });
 

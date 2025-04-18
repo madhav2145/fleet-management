@@ -6,7 +6,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { signUp } from '../authService';
-import { Eye, EyeOff } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons'; // Replaced lucide-react-native with @expo/vector-icons
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SignUp: React.FC = () => {
@@ -100,7 +100,11 @@ const SignUp: React.FC = () => {
                   placeholderTextColor="#8B9EB0"
                 />
                 <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)} style={styles.eyeIcon}>
-                  {passwordVisible ? <EyeOff size={20} color="#8B9EB0" /> : <Eye size={20} color="#8B9EB0" />}
+                  {passwordVisible ? (
+                    <Ionicons name="eye-off" size={20} color="#8B9EB0" />
+                  ) : (
+                    <Ionicons name="eye" size={20} color="#8B9EB0" />
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -117,7 +121,11 @@ const SignUp: React.FC = () => {
                   placeholderTextColor="#8B9EB0"
                 />
                 <TouchableOpacity onPress={() => setConfirmPasswordVisible(!confirmPasswordVisible)} style={styles.eyeIcon}>
-                  {confirmPasswordVisible ? <EyeOff size={20} color="#8B9EB0" /> : <Eye size={20} color="#8B9EB0" />}
+                  {confirmPasswordVisible ? (
+                    <Ionicons name="eye-off" size={20} color="#8B9EB0" />
+                  ) : (
+                    <Ionicons name="eye" size={20} color="#8B9EB0" />
+                  )}
                 </TouchableOpacity>
               </View>
             </View>

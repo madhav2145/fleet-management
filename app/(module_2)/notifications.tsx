@@ -14,7 +14,7 @@ import { collection, onSnapshot, query } from 'firebase/firestore';
 import { firestore } from '../../firebaseConfig';
 import DetailsPage from '../components/details_2'; // Import the DetailsPage component
 import { Picker } from '@react-native-picker/picker'; // Import Picker
-import * as Notifications from 'expo-notifications';
+// import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SearchResources: React.FC = () => {
@@ -39,36 +39,36 @@ const SearchResources: React.FC = () => {
   }, []);
 
   // Request notification permissions
-  const requestNotificationPermissions = async () => {
-    const { status } = await Notifications.getPermissionsAsync();
-    console.log('Notification Permission Status:', status);
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'You need to enable notifications to receive alerts.');
-    }
-  };
+  // const requestNotificationPermissions = async () => {
+  //   const { status } = await Notifications.getPermissionsAsync();
+  //   console.log('Notification Permission Status:', status);
+  //   if (status !== 'granted') {
+  //     Alert.alert('Permission Denied', 'You need to enable notifications to receive alerts.');
+  //   }
+  // };
 
   // Test notification function
-  const testNotification = async () => {
-    const { status } = await Notifications.requestPermissionsAsync();
-    console.log('Notification Permission Status:', status);
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'You need to enable notifications to receive alerts.');
-      return;
-    }
+  // const testNotification = async () => {
+  //   const { status } = await Notifications.requestPermissionsAsync();
+  //   console.log('Notification Permission Status:', status);
+  //   if (status !== 'granted') {
+  //     Alert.alert('Permission Denied', 'You need to enable notifications to receive alerts.');
+  //     return;
+  //   }
 
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Test Notification',
-          body: 'This is a test notification to verify functionality.',
-        },
-        trigger: null, // Send immediately
-      });
-      console.log('Test notification sent successfully.');
-    } catch (error) {
-      console.error('Error sending test notification:', error);
-    }
-  };
+  //   try {
+  //     await Notifications.scheduleNotificationAsync({
+  //       content: {
+  //         title: 'Test Notification',
+  //         body: 'This is a test notification to verify functionality.',
+  //       },
+  //       trigger: null, // Send immediately
+  //     });
+  //     console.log('Test notification sent successfully.');
+  //   } catch (error) {
+  //     console.error('Error sending test notification:', error);
+  //   }
+  // };
 
   // Check for vehicles with low resources and send notifications
   const checkAndSendNotifications = useCallback(async () => {
@@ -94,29 +94,29 @@ const SearchResources: React.FC = () => {
     });
     console.log('Low Resource Vehicles:', lowResourceVehicles);
 
-    if (lowResourceVehicles.length > 0) {
-      try {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'Low Resource Alert',
-            body: 'Some vehicles have low resources. Please check the app for details.',
-          },
-          trigger: null, // Send immediately
-        });
-        console.log('Notification scheduled successfully for Module 2.');
+    // if (lowResourceVehicles.length > 0) {
+    //   try {
+    //     await Notifications.scheduleNotificationAsync({
+    //       content: {
+    //         title: 'Low Resource Alert',
+    //         body: 'Some vehicles have low resources. Please check the app for details.',
+    //       },
+    //       trigger: null, // Send immediately
+    //     });
+    //     console.log('Notification scheduled successfully for Module 2.');
 
-        // Save today's date as the last notification date
-        await AsyncStorage.setItem(uniqueKey, today.toISOString());
-      } catch (error) {
-        console.error('Error scheduling notification:', error);
-      }
-    } else {
-      console.log('No vehicles with low resources found in Module 2.');
-    }
+    //     // Save today's date as the last notification date
+    //     await AsyncStorage.setItem(uniqueKey, today.toISOString());
+    //   } catch (error) {
+    //     console.error('Error scheduling notification:', error);
+    //   }
+    // } else {
+    //   console.log('No vehicles with low resources found in Module 2.');
+    // }
   }, [resources]);
 
   useEffect(() => {
-    requestNotificationPermissions();
+    // requestNotificationPermissions();
     checkAndSendNotifications();
   }, [resources]);
 

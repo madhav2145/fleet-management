@@ -7,6 +7,7 @@ const HomeLayout = () => {
     <Drawer
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
+        headerShown: true, 
         drawerStyle: {
           backgroundColor: '#F0F4F8',
           width: 240,
@@ -22,28 +23,28 @@ const HomeLayout = () => {
       <Drawer.Screen
         name="home"
         options={{
-          drawerLabel: 'Home', // Use a string directly
+          drawerLabel: 'Home',
           title: 'Home',
         }}
       />
       <Drawer.Screen
         name="search"
         options={{
-          drawerLabel: 'Search', // Use a string directly
+          drawerLabel: 'Search',
           title: 'Search',
         }}
       />
       <Drawer.Screen
         name="notifications"
         options={{
-          drawerLabel: 'Notifications', // Use a string directly
+          drawerLabel: 'Notifications',
           title: 'Notifications',
         }}
       />
       <Drawer.Screen
         name="addvehicle"
         options={{
-          drawerLabel: 'Add Vehicle', // Use a string directly
+          drawerLabel: 'Add Vehicle',
           title: 'Add Vehicle',
         }}
       />

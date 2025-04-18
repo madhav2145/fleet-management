@@ -9,7 +9,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { Search, SortAsc, SortDesc } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons'; // Replaced lucide-react-native with @expo/vector-icons
 import { getAllVehicles } from '../../backend/vehicleService';
 import { addDays, isBefore, isAfter } from 'date-fns';
 import { useFocusEffect } from '@react-navigation/native';
@@ -49,9 +49,18 @@ const SearchVehicles: React.FC = () => {
 
   const { filter } = useLocalSearchParams(); // Retrieve the filter parameter from the route
 
-  const selectedFilter: keyof Vehicle | 'default' | null = filterParamToKey[filter as string] || 'default'; // Map the filter to the corresponding field
+  // Manage selectedFilter as a state
+  const [selectedFilter, setSelectedFilter] = useState<keyof Vehicle | 'default' | null>(
+    filter ? filterParamToKey[filter as string] || 'default' : 'default'
+  );
 
-  console.log('Selected Filter:', selectedFilter);
+  useEffect(() => {
+    // Update selectedFilter when the filter parameter changes
+    if (filter) {
+      const newFilter = filterParamToKey[filter as string] || 'default';
+      setSelectedFilter(newFilter);
+    }
+  }, [filter]); // Listen for changes in the filter parameter
 
   const fetchVehicles = async () => {
     try {
@@ -71,7 +80,8 @@ const SearchVehicles: React.FC = () => {
   );
 
   const handleFilterChange = (value: keyof Vehicle | 'default' | null) => {
-    setSortOrder('asc');
+    setSelectedFilter(value); // Update the selectedFilter state
+    setSortOrder('asc'); // Reset the sort order
   };
 
   const filteredAndSortedVehicles = useMemo(() => {
@@ -114,7 +124,7 @@ const SearchVehicles: React.FC = () => {
       <Text style={styles.title}>Search Vehicles</Text>
 
       <View style={styles.searchContainer}>
-        <Search size={20} color="#0A3D91" style={styles.searchIcon} />
+        <Ionicons name="search" size={20} color="#0A3D91" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search by Vehicle Number"
@@ -127,7 +137,7 @@ const SearchVehicles: React.FC = () => {
       <View style={styles.filterRow}>
         <Picker
           selectedValue={selectedFilter}
-          onValueChange={handleFilterChange}
+          onValueChange={handleFilterChange} // Update selectedFilter when dropdown changes
           style={styles.picker}
         >
           <Picker.Item label="Alphabetical" value="default" />
@@ -146,9 +156,9 @@ const SearchVehicles: React.FC = () => {
             onPress={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
           >
             {sortOrder === 'asc' ? (
-              <SortAsc size={20} color="#0A3D91" />
+              <Ionicons name="arrow-up" size={20} color="#0A3D91" />
             ) : (
-              <SortDesc size={20} color="#0A3D91" />
+              <Ionicons name="arrow-down" size={20} color="#0A3D91" />
             )}
             <Text style={styles.sortButtonText}>
               {sortOrder === 'asc' ? 'Oldest First' : 'Newest First'}

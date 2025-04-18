@@ -1,6 +1,33 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, BackHandler, Alert } from 'react-native';
-import { Truck, Calendar, FileCheck, Shield, Award, Ticket, FileText, User, ArrowLeft, Clock, AlertTriangle, Edit3, Save, X, LucideProps } from 'lucide-react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  BackHandler,
+  Alert,
+  Platform,
+} from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import {
+  Truck,
+  Calendar,
+  FileCheck,
+  Shield,
+  Award,
+  Ticket,
+  FileText,
+  User,
+  ArrowLeft,
+  Clock,
+  AlertTriangle,
+  Edit3,
+  Save,
+  X,
+  LucideProps,
+} from 'lucide-react-native';
 import { getVehicle, updateVehicle } from '../../backend/vehicleService';
 import { auth, firestore } from '../../firebaseConfig';
 import { getDoc, doc } from 'firebase/firestore';
@@ -32,9 +59,7 @@ const DetailSection: React.FC<DetailSectionProps> = ({ title, icon: Icon, childr
       <Icon size={20} color="#0A3D91" />
       <Text style={styles.sectionTitle}>{title}</Text>
     </View>
-    <View style={styles.sectionContent}>
-      {children}
-    </View>
+    <View style={styles.sectionContent}>{children}</View>
   </View>
 );
 
@@ -47,7 +72,16 @@ interface DetailItemProps {
   onChangeText?: (text: string) => void;
 }
 
-const DetailItem: React.FC<DetailItemProps> = ({ label, value, icon: Icon, isDate = false, editable = false, onChangeText }) => {
+const DetailItem: React.FC<DetailItemProps> = ({
+  label,
+  value,
+  icon: Icon,
+  isDate = false,
+  editable = false,
+  onChangeText,
+}) => {
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
   let statusColor = '#2D3748';
   let statusIcon = null;
 
@@ -65,12 +99,12 @@ const DetailItem: React.FC<DetailItemProps> = ({ label, value, icon: Icon, isDat
     }
   }
 
-  const handleBlur = () => {
-    if (isDate) {
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/; // Updated format to YYYY-MM-DD
-      if (value && !dateRegex.test(value)) {
-        Alert.alert('Invalid Date Format', 'Please enter the date in YYYY-MM-DD format.');
-      }
+  const handleDateChange = (event: any, selectedDate: Date | undefined) => {
+    setShowDatePicker(false);
+
+    if (event.type === 'set' && selectedDate && onChangeText) {
+      const formattedDate = selectedDate.toISOString().split('T')[0];
+      onChangeText(formattedDate);
     }
   };
 
@@ -81,22 +115,27 @@ const DetailItem: React.FC<DetailItemProps> = ({ label, value, icon: Icon, isDat
       </View>
       <Text style={styles.detailLabel}>{label}:</Text>
       <View style={styles.valueContainer}>
-        {editable ? (
-          <TextInput
-            style={[
-              styles.detailValue,
-              { color: isDate ? statusColor : '#2D3748', textAlign: 'left' },
-            ]}
-            value={value}
-            onChangeText={onChangeText}
-            onBlur={handleBlur} // Validate on blur
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor="#94a3b8"
-          />
+        {editable && isDate ? (
+          <>
+            <TouchableOpacity
+              style={[styles.datePickerButton, { borderColor: statusColor }]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={[styles.detailValue, { color: statusColor }]}>
+                {value || 'Select Date'}
+              </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={value ? new Date(value) : new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                onChange={handleDateChange}
+              />
+            )}
+          </>
         ) : (
-          <Text style={[styles.detailValue, { color: isDate ? statusColor : '#2D3748' }]}>
-            {value}
-          </Text>
+          <Text style={[styles.detailValue, { color: isDate ? statusColor : '#2D3748' }]}>{value}</Text>
         )}
         {statusIcon}
       </View>
@@ -116,35 +155,78 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
   const [formData, setFormData] = useState<Vehicle | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState('');
-  const [invalidFields, setInvalidFields] = useState<string[]>([]); // Track invalid fields
+  const [invalidFields, setInvalidFields] = useState<string[]>([]);
 
   const fetchVehicleDetails = async () => {
     try {
       setIsLoading(true);
-      const vehicleData = await getVehicle(id); // Use the getVehicle function to fetch details
-  
+      const vehicleData = await getVehicle(id);
+
       if (vehicleData) {
-        console.log('Fetched Vehicle Data:', vehicleData); // Debugging log
         setVehicle({ ...(vehicleData as Vehicle), id });
         setFormData({ id, ...vehicleData } as Vehicle);
       } else {
-        console.error('Vehicle not found for ID:', id); // Debugging log
         setError('Vehicle not found.');
       }
     } catch (err) {
-      console.error('Error fetching vehicle details:', err); // Debugging log
       setError('Failed to fetch vehicle details.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleSave = async () => {
+    if (formData) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+      const dateFields = [
+        { label: 'Registration Date', key: 'registrationDate', value: formData.registrationDate },
+        { label: 'Pollution Expiry', key: 'pollutionExpiry', value: formData.pollutionExpiry },
+        { label: 'AITP Expiry', key: 'aitpExpiry', value: formData.aitpExpiry },
+        { label: 'Insurance Expiry', key: 'insuranceExpiry', value: formData.insuranceExpiry },
+        { label: 'Fitness Expiry', key: 'fitnessExpiry', value: formData.fitnessExpiry },
+        { label: '1 Year Permit Till', key: 'permitPaidTill1', value: formData.permitPaidTill1 },
+        { label: '5 Year Permit Till', key: 'permitPaidTill2', value: formData.permitPaidTill2 },
+        { label: 'Tax Paid Till', key: 'taxPaidTill', value: formData.taxPaidTill },
+      ];
+
+      const invalidFields = dateFields
+        .filter((field) => field.value && !dateRegex.test(field.value))
+        .map((field) => field.key);
+
+      if (invalidFields.length > 0) {
+        setInvalidFields(invalidFields);
+        Alert.alert(
+          'Invalid Date Format',
+          `The following fields must be in YYYY-MM-DD format:\n${invalidFields
+            .map((key) => dateFields.find((field) => field.key === key)?.label)
+            .join(', ')}`
+        );
+        return;
+      }
+
+      try {
+        await updateVehicle(id, formData);
+        setVehicle(formData);
+        setIsEditing(false);
+        setInvalidFields([]);
+      } catch (error) {
+        console.error('Error updating vehicle:', error);
+      }
+    }
+  };
+
+  const handleCancel = () => {
+    setFormData(vehicle);
+    setIsEditing(false);
+  };
+
   useEffect(() => {
     fetchVehicleDetails();
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      onBack(); // Call the onBack callback to navigate back to the search page
-      return true; // Prevent default back button behavior
+      onBack();
+      return true;
     });
 
     const checkAdmin = async () => {
@@ -160,57 +242,8 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
 
     checkAdmin();
 
-    return () => backHandler.remove(); // Cleanup the event listener
+    return () => backHandler.remove();
   }, [id, onBack]);
-
-  const handleSave = async () => {
-    if (formData) {
-      // Regex to validate YYYY-MM-DD format
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-
-      // Validate all date fields
-      const dateFields = [
-        { label: 'Registration Date', key: 'registrationDate', value: formData.registrationDate },
-        { label: 'Pollution Expiry', key: 'pollutionExpiry', value: formData.pollutionExpiry },
-        { label: 'AITP Expiry', key: 'aitpExpiry', value: formData.aitpExpiry },
-        { label: 'Insurance Expiry', key: 'insuranceExpiry', value: formData.insuranceExpiry },
-        { label: 'Fitness Expiry', key: 'fitnessExpiry', value: formData.fitnessExpiry },
-        { label: '1 Year Permit Till', key: 'permitPaidTill1', value: formData.permitPaidTill1 },
-        { label: '5 Year Permit Till', key: 'permitPaidTill2', value: formData.permitPaidTill2 },
-        { label: 'Tax Paid Till', key: 'taxPaidTill', value: formData.taxPaidTill },
-      ];
-
-      // Find invalid fields
-      const invalidFields = dateFields
-        .filter((field) => field.value && !dateRegex.test(field.value)) // Check if the value is invalid
-        .map((field) => field.key); // Extract the keys of invalid fields
-
-      if (invalidFields.length > 0) {
-        setInvalidFields(invalidFields); // Highlight invalid fields
-        Alert.alert(
-          'Invalid Date Format',
-          `The following fields must be in YYYY-MM-DD format:\n${invalidFields
-            .map((key) => dateFields.find((field) => field.key === key)?.label)
-            .join(', ')}`
-        );
-        return; // Stop the save operation
-      }
-
-      try {
-        await updateVehicle(id, formData); // Save the data if all validations pass
-        setVehicle(formData);
-        setIsEditing(false);
-        setInvalidFields([]); // Clear invalid fields after successful save
-      } catch (error) {
-        console.error('Error updating vehicle:', error);
-      }
-    }
-  };
-
-  const handleCancel = () => {
-    setFormData(vehicle);
-    setIsEditing(false);
-  };
 
   if (isLoading) {
     return (
@@ -264,6 +297,7 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
           label="Registration Date"
           value={formData?.registrationDate || ''}
           icon={Calendar}
+          isDate={true}
           editable={isEditing}
           onChangeText={(text) => formData && setFormData({ ...formData, registrationDate: text } as Vehicle)}
         />
@@ -448,8 +482,8 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     backgroundColor: '#F0F4F8',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
     marginRight: 12,
   },
   detailLabel: {
@@ -460,18 +494,27 @@ const styles = StyleSheet.create({
   valueContainer: {
     flex: 1,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
     alignItems: 'center',
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '500',
-    textAlign: 'left', // Explicitly set textAlign to 'left'
-    paddingVertical: 4, // Add padding for better usability
-    paddingHorizontal: 8, // Add horizontal padding for better usability
+    textAlign: 'left',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
   },
   statusIcon: {
     marginLeft: 6,
+  },
+  datePickerButton: {
+    backgroundColor: '#FFFFFF',
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
   },
   errorContainer: {
     flex: 1,

@@ -6,7 +6,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { signIn } from '../authService';
-import { Eye, EyeOff } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Login: React.FC = () => {
@@ -29,14 +29,13 @@ const Login: React.FC = () => {
 
   useEffect(() => {
     const backAction = () => {
-      // Navigate to the index page when the back button is pressed
-      router.replace('..'); // Ensure the correct path to the index page
-      return true; // Prevent the default back action
+      router.replace('..');
+      return true;
     };
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
 
-    return () => backHandler.remove(); // Cleanup the event listener
+    return () => backHandler.remove();
   }, []);
 
   const handleSignIn = async () => {
@@ -53,7 +52,6 @@ const Login: React.FC = () => {
       }
       setIsSubmitting(false);
 
-      // Route to the appropriate module's home page
       router.replace({
         pathname:
           selectedModule === 'module_1'
@@ -115,7 +113,11 @@ const Login: React.FC = () => {
                   placeholderTextColor="#8B9EB0"
                 />
                 <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)} style={styles.eyeIcon}>
-                  {passwordVisible ? <EyeOff size={20} color="#8B9EB0" /> : <Eye size={20} color="#8B9EB0" />}
+                  {passwordVisible ? (
+                    <Ionicons name="eye-off" size={20} color="#8B9EB0" />
+                  ) : (
+                    <Ionicons name="eye" size={20} color="#8B9EB0" />
+                  )}
                 </TouchableOpacity>
               </View>
             </View>

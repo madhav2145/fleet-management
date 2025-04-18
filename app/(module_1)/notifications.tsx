@@ -10,14 +10,12 @@ import {
   Alert,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { SortAsc, SortDesc } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons'; // Replaced lucide-react-native with @expo/vector-icons
 import { getAllVehicles } from '../../backend/vehicleService';
 import { addDays, isBefore, isAfter } from 'date-fns';
 import { useFocusEffect } from '@react-navigation/native';
-import * as Notifications from 'expo-notifications';
 import Details from '../components/details_1';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage to persist the last notification date
-import messaging from '@react-native-firebase/messaging';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Vehicle {
   id: string;
@@ -33,13 +31,6 @@ interface Vehicle {
   permitPaidTill2: string;
   taxPaidTill: string;
 }
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
 
 const filterParamToKey: Record<string, keyof Vehicle | null> = {
   POLLUTION: 'pollutionExpiry',
@@ -70,134 +61,36 @@ const NotificationsPage: React.FC = () => {
     }
   };
 
-  // Request notification permissions
-  const requestNotificationPermissions = async () => {
-    const authStatus = await messaging().requestPermission();
-    const enabled =
-      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-
-    if (enabled) {
-      console.log('Notification permissions granted.');
-    } else {
-      Alert.alert('Permission Denied', 'You need to enable notifications to receive alerts.');
-    }
-  };
-
-  // Get FCM token
-  const getFCMToken = async () => {
+  // Save selected filter to AsyncStorage
+  const saveFilterToStorage = async (filter: keyof Vehicle | null) => {
     try {
-      const token = await messaging().getToken();
-      console.log('FCM Token:', token);
-      // Send the token to your backend server for later use
+      await AsyncStorage.setItem('selectedFilter', filter || '');
     } catch (error) {
-      console.error('Error retrieving FCM token:', error);
+      console.error('Error saving filter to AsyncStorage:', error);
     }
   };
 
-  // Schedule notifications for vehicle expiry
-  const scheduleVehicleExpiryNotifications = async () => {
-    const today = new Date();
-    const next30Days = addDays(today, 30);
-    const next15Days = addDays(today, 15); // For AITP expiry
-    const uniqueKey = 'lastNotificationDate_Module1'; // Unique key for Module 1
-
-    // Retrieve the last notification date from AsyncStorage
-    const lastNotificationDate = await AsyncStorage.getItem(uniqueKey);
-    const lastNotification = lastNotificationDate ? new Date(lastNotificationDate) : null;
-
-    // Check if a notification was already sent today
-    if (lastNotification && lastNotification.toDateString() === today.toDateString()) {
-      console.log('Notification already sent today for Module 1.');
-      return; // Exit if a notification was already sent today
-    }
-
-    // Check if any vehicle is about to expire
-    let isVehicleExpiring = false;
-
-    for (const [key, filterKey] of Object.entries(filterParamToKey)) {
-      if (!filterKey) continue; // Skip null filters
-
-      const expiryThreshold = key === 'AITP' ? next15Days : next30Days; // Use 15 days for AITP, 30 days for others
-
-      isVehicleExpiring = vehicles.some((vehicle) => {
-        const expiryDate = vehicle[filterKey] ? new Date(vehicle[filterKey]) : null;
-        return expiryDate && isBefore(expiryDate, expiryThreshold) && isAfter(expiryDate, today);
-      });
-
-      if (isVehicleExpiring) {
-        break; // Stop searching if a vehicle is found
+  // Load selected filter from AsyncStorage
+  const loadFilterFromStorage = async () => {
+    try {
+      const storedFilter = await AsyncStorage.getItem('selectedFilter');
+      if (storedFilter) {
+        setSelectedFilter(storedFilter as keyof Vehicle);
       }
-    }
-
-    if (isVehicleExpiring) {
-      try {
-        await messaging().sendMessage({
-          notification: {
-            title: 'Expiring Vehicles Alert',
-            body: 'Some of your vehicles are about to expire soon. Please check the app for details.',
-          },
-          fcmOptions: {
-            analyticsLabel: 'ExpiringVehiclesAlert',
-          },
-        });
-        console.log('Notification scheduled for expiring vehicles in Module 1.');
-
-        // Save today's date as the last notification date
-        await AsyncStorage.setItem(uniqueKey, today.toISOString());
-      } catch (error) {
-        console.error('Error scheduling notification:', error);
-      }
-    } else {
-      console.log('No vehicles are expiring soon in Module 1.');
+    } catch (error) {
+      console.error('Error loading filter from AsyncStorage:', error);
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      let isNotificationChecked = false;
-
-      const checkNotifications = async () => {
-        if (!isNotificationChecked) {
-          isNotificationChecked = true;
-          await scheduleVehicleExpiryNotifications();
-        }
-      };
-
-      fetchVehicles();
-      requestNotificationPermissions();
-      getFCMToken();
-      checkNotifications();
-    }, [scheduleVehicleExpiryNotifications])
-  );
-
   useEffect(() => {
-    if (vehicles.length > 0) {
-      scheduleVehicleExpiryNotifications();
-    }
-  }, [vehicles]); // Removed `scheduleVehicleExpiryNotifications` from dependencies
-
-  // Handle foreground notifications
-  useEffect(() => {
-    const unsubscribe = messaging().onMessage(async (remoteMessage) => {
-      Alert.alert('New Notification', remoteMessage.notification?.body || 'You have a new message.');
-    });
-
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    // Request notification permissions and get FCM token
-    requestNotificationPermissions();
-    getFCMToken();
-
-    // Schedule notifications for vehicle expiry
-    scheduleVehicleExpiryNotifications();
+    loadFilterFromStorage();
+    fetchVehicles();
   }, []);
 
   const handleFilterChange = (value: keyof Vehicle | null) => {
     setSelectedFilter(value);
     setSortOrder('asc');
+    saveFilterToStorage(value); // Save the selected filter to AsyncStorage
   };
 
   const filteredAndSortedVehicles = useMemo(() => {
@@ -258,9 +151,9 @@ const NotificationsPage: React.FC = () => {
           onPress={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
         >
           {sortOrder === 'asc' ? (
-            <SortAsc size={20} color="#0A3D91" />
+            <Ionicons name="arrow-up" size={20} color="#0A3D91" />
           ) : (
-            <SortDesc size={20} color="#0A3D91" />
+            <Ionicons name="arrow-down" size={20} color="#0A3D91" />
           )}
           <Text style={styles.sortButtonText}>
             {sortOrder === 'asc' ? 'Oldest First' : 'Newest First'}
