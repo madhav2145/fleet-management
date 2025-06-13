@@ -3,7 +3,6 @@ import {
   View, Text, TouchableOpacity, StyleSheet, TextInput, 
   Image, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, BackHandler 
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { signIn } from '../authService';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,10 +12,30 @@ const Login: React.FC = () => {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [selectedModule, setSelectedModule] = useState<'module_1' | 'module_2' | 'module_3'>('module_1');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
+
+  useEffect(() => {
+    // Check if user credentials are stored in AsyncStorage
+    const checkStoredCredentials = async () => {
+      try {
+        const storedEmail = await AsyncStorage.getItem('userEmail');
+        const storedPassword = await AsyncStorage.getItem('userPassword');
+
+        if (storedEmail && storedPassword) {
+          // Automatically log in the user
+          setEmail(storedEmail);
+          setPassword(storedPassword);
+          handleSignIn(storedEmail, storedPassword);
+        }
+      } catch (error) {
+        console.error('Error checking stored credentials:', error);
+      }
+    };
+
+    checkStoredCredentials();
+  }, []);
 
   useEffect(() => {
     if (error) {
@@ -38,30 +57,49 @@ const Login: React.FC = () => {
     return () => backHandler.remove();
   }, []);
 
-  const handleSignIn = async () => {
+  const handleSignIn = async (
+    emailParam = email,
+    passwordParam = password
+  ) => {
     setIsSubmitting(true);
     try {
-      const user = await signIn(email, password);
-      if ((user && user.module !== selectedModule) && user.role !== 'admin') {
-        setError('You do not have access to this module.');
+      const user = await signIn(emailParam, passwordParam);
+      if (!user) {
+        setError('Please check your email and password.');
+        // Clear possibly invalid credentials
+        await AsyncStorage.removeItem('userEmail');
+        await AsyncStorage.removeItem('userPassword');
+        await AsyncStorage.removeItem('userToken');
+        await AsyncStorage.removeItem('userModule');
+        await AsyncStorage.removeItem('role');
         setIsSubmitting(false);
         return;
       }
-      if (user) {
-        await AsyncStorage.setItem('userToken', user.email);
+      // Save user credentials to AsyncStorage
+      await AsyncStorage.setItem('userEmail', emailParam);
+      await AsyncStorage.setItem('userPassword', passwordParam);
+      await AsyncStorage.setItem('userToken', user.email);
+      // Save userModule and role if available
+      if (user.module) {
+        if (Array.isArray(user.module)) {
+          await AsyncStorage.setItem('userModule', JSON.stringify(user.module));
+        } else {
+          await AsyncStorage.setItem('userModule', user.module);
+        }
+      }
+      if (user.role) {
+        await AsyncStorage.setItem('role', user.role);
       }
       setIsSubmitting(false);
-
-      router.replace({
-        pathname:
-          selectedModule === 'module_1'
-            ? '/(module_1)/home'
-            : selectedModule === 'module_2'
-            ? '/(module_2)/home'
-            : '/(module_3)/home',
-      });
+      router.replace('/dashboard');
     } catch (error) {
       setError('Please check your email and password.');
+      // Clear possibly invalid credentials
+      await AsyncStorage.removeItem('userEmail');
+      await AsyncStorage.removeItem('userPassword');
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userModule');
+      await AsyncStorage.removeItem('role');
       setIsSubmitting(false);
     }
   };
@@ -76,7 +114,7 @@ const Login: React.FC = () => {
           <View style={styles.logoContainer}>
             <View style={styles.logoSquare}>
               <Image 
-                source={require('../assets/images/logo.png')} 
+                source={require('../assets/images/app_logo(1).png')} 
                 style={styles.logo} 
               />
             </View>
@@ -122,38 +160,13 @@ const Login: React.FC = () => {
               </View>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Select Module</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={selectedModule}
-                  onValueChange={(itemValue) => setSelectedModule(itemValue)}
-                  style={styles.picker}
-                  itemStyle={styles.pickerItem}
-                >
-                  <Picker.Item label="Module 1" value="module_1" />
-                  <Picker.Item label="Module 2" value="module_2" />
-                  <Picker.Item label="Module 3" value="module_3" />
-                </Picker>
-              </View>
-            </View>
-            
-            <Text style={styles.forgotPassword}>Forgot Password?</Text>
-            
             <TouchableOpacity 
               style={styles.loginButton} 
-              onPress={handleSignIn}
+              onPress={() => handleSignIn()}
               disabled={isSubmitting}
             >
               {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>Access Dashboard</Text>}
             </TouchableOpacity>
-            
-            <View style={styles.helpContainer}>
-              <Text style={styles.helpText}>Need assistance? </Text>
-              <TouchableOpacity>
-                <Text style={styles.helpLink}>Contact Support</Text>
-              </TouchableOpacity>
-            </View>
           </View>
 
           <View style={styles.busIconContainer}>
@@ -189,16 +202,16 @@ const styles = StyleSheet.create({
     marginBottom: 5, // Reduced margin
   },
   logoSquare: {
-    width: 60,
-    height: 70,
+    width: 120,
+    height: 120,
     backgroundColor: '#0A3D91',
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
   logo: {
-    width: 80,
-    height: 70,
+    width: 140,
+    height: 120,
     resizeMode: 'contain',
   },
   companyName: {

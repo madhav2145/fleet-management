@@ -1,15 +1,60 @@
-import React from 'react'
-import { Text, View, StyleSheet, TouchableOpacity } from 'react-native'
-import { useRouter } from 'expo-router'
-// import messaging from '@react-native-firebase/messaging';
-
-// Handle background notifications
-// messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-//   console.log('Message handled in the background:', remoteMessage);
-// });
+import React, { useEffect } from 'react';
+import { Text, View, StyleSheet, TouchableOpacity, ActivityIndicator, BackHandler } from 'react-native';
+import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebaseConfig'; 
 
 const Index = () => {
   const router = useRouter();
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  useEffect(() => {
+    const checkStoredCredentials = async () => {
+      try {
+        const storedEmail = await AsyncStorage.getItem('userEmail');
+        const storedPassword = await AsyncStorage.getItem('userPassword');
+
+        if (storedEmail && storedPassword) {
+          // Authenticate the user with Firebase
+          try {
+            await signInWithEmailAndPassword(auth, storedEmail, storedPassword);
+            console.log('User authenticated successfully.');
+            // Navigate to the dashboard
+            router.replace('/dashboard');
+          } catch (authError) {
+            console.error('Error authenticating user:', authError);
+            // Clear invalid credentials to prevent repeated failed attempts
+            await AsyncStorage.removeItem('userEmail');
+            await AsyncStorage.removeItem('userPassword');
+            setIsLoading(false); // Show login/signup buttons if authentication fails
+          }
+        } else {
+          setIsLoading(false); // Show login/signup buttons if no credentials are found
+        }
+      } catch (error) {
+        console.error('Error checking stored credentials:', error);
+        setIsLoading(false);
+      }
+    };
+
+    checkStoredCredentials();
+
+    const backAction = () => {
+      BackHandler.exitApp();
+      return true;
+    };
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => backHandler.remove();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#D01C1F" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -18,11 +63,6 @@ const Index = () => {
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.button} onPress={() => router.push('/login')}>
           <Text style={styles.buttonText}>Login</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.button} onPress={() => router.push('/signup')}>
-          <Text style={styles.buttonText}>Sign Up</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.busIconContainer}>
@@ -35,8 +75,8 @@ const Index = () => {
         </View>
       </View>
     </View>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -126,7 +166,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 15,
-  }
-})
+  },
+});
 
-export default Index
+export default Index;

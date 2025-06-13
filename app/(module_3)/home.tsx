@@ -1,8 +1,10 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, BackHandler, Alert } from 'react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter, useSegments } from 'expo-router';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { firestore } from '../../firebaseConfig';
+import { collection, query, where, getDocs, doc, setDoc, arrayUnion } from 'firebase/firestore';
+import { firestore, auth } from '../../firebaseConfig';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 
 const Home: React.FC = () => {
   const router = useRouter();
@@ -15,6 +17,9 @@ const Home: React.FC = () => {
     notCleaned4Days: 0,
     unusableItems: 0,
   });
+
+  const [pushToken, setPushToken] = useState<string | null>(null); // State to store the push token
+  const [errorMessage, setErrorMessage] = useState<string | null>(null); // State to store error messages
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -69,31 +74,82 @@ const Home: React.FC = () => {
 
   useEffect(() => {
     const backAction = () => {
-      const currentRoute = segments.join('/'); // Get the current route as a string
-
+      const currentRoute = segments.join('/');
       if (currentRoute === '(module_3)/home') {
-        // If on the home page, show the minimize app dialog
-        Alert.alert('Minimize App', 'Do you want to minimize the app?', [
-          {
-            text: 'Cancel',
-            onPress: () => null,
-            style: 'cancel',
-          },
-          {
-            text: 'Yes',
-            onPress: () => BackHandler.exitApp(), // Minimize the app
-          },
-        ]);
-        return true; // Prevent default back button behavior
+        router.replace('/dashboard');
+        return true;
       } else {
-        return false; // Allow default back button behavior for other pages
+        router.replace('/(module_3)/home');
+        return true;
+      }
+    };
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => backHandler.remove();
+  }, [segments]);
+
+  useEffect(() => {
+    const registerForPushNotificationsAsync = async () => {
+      try {
+        console.log('registerForPushNotificationsAsync is being called...');
+
+        if (!Device.isDevice) {
+          setErrorMessage('Push notifications are only supported on physical devices.');
+          console.log('Push notifications are not supported on this device.');
+          return;
+        }
+
+        // Check existing notification permissions
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        console.log('Existing notification permission status:', existingStatus);
+
+        let finalStatus = existingStatus;
+
+        // Request permissions if not already granted
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+          console.log('New notification permission status:', finalStatus);
+        }
+
+        // If permissions are still not granted, show an error
+        if (finalStatus !== 'granted') {
+          setErrorMessage('Failed to get push token for push notifications. Please grant notification permissions.');
+          console.log('Notification permissions not granted.');
+          return;
+        }
+
+        // Get the Expo push token
+        const expoPushToken = (await Notifications.getExpoPushTokenAsync()).data;
+        console.log('Generated Expo Push Token:', expoPushToken);
+
+        setPushToken(expoPushToken); // Save the push token to state
+        console.log('Push token saved to state:', expoPushToken);
+
+        setErrorMessage(null); // Clear any previous error messages
+
+        // Save the token to Firestore
+        const user = auth.currentUser;
+        if (!user) {
+          setErrorMessage('No logged-in user found.');
+          console.log('No logged-in user found.');
+          return;
+        }
+
+        const userRef = doc(firestore, 'users', user.uid);
+        await setDoc(
+          userRef,
+          { pushToken: arrayUnion(expoPushToken) },
+          { merge: true }
+        );
+        console.log('Expo push token added successfully in Firestore.');
+      } catch (error) {
+        console.error('Error registering for push notifications:', error);
+        setErrorMessage('An error occurred while generating the push token.');
       }
     };
 
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-
-    return () => backHandler.remove(); // Cleanup the event listener
-  }, [segments]);
+    registerForPushNotificationsAsync();
+  }, []);
 
   const getYesterdayDate = () => {
     const yesterday = new Date();
@@ -167,66 +223,83 @@ const Home: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0F4F8',
+    backgroundColor: '#EEF2F7', // Slightly lighter background for better contrast
   },
   content: {
-    padding: 16,
+    padding: 20, // Increased padding for better spacing
+    paddingTop: 30, // Extra padding at the top
   },
   headerContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center', // Center the title
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 30, // Increased margin for better spacing
+    paddingBottom: 15, // Add padding at the bottom
+    borderBottomWidth: 1, // Add a subtle border
+    borderBottomColor: '#D8E1E8', // Light border color
   },
   title: {
-    fontSize: 24,
+    fontSize: 28, // Larger font size
     fontWeight: 'bold',
     color: '#0A3D91',
     textAlign: 'center',
+    letterSpacing: 0.5, // Slight letter spacing for better readability
   },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    marginHorizontal: 2, // Small margin to ensure cards align properly
   },
   statCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16, // More rounded corners
+    padding: 20, // More padding inside cards
     width: '48%',
-    marginBottom: 16,
+    marginBottom: 20, // More space between rows
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 }, // Slightly larger shadow offset
+    shadowOpacity: 0.12, // More subtle shadow
+    shadowRadius: 10, // Larger shadow radius for softer shadow
+    elevation: 5, // Increased elevation for Android
     alignItems: 'center',
+    borderWidth: 1, // Add a subtle border
+    borderColor: '#F0F0F0', // Very light border color
   },
   statLabel: {
-    fontSize: 14,
-    color: '#5A7184',
+    fontSize: 15, // Slightly larger font
+    fontWeight: '500', // Medium weight for better readability
+    color: '#445A74', // Slightly darker for better contrast
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 12, // More space between label and value
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 28, // Larger value for emphasis
     fontWeight: 'bold',
     color: '#D01C1F',
     textAlign: 'center',
   },
   addButton: {
     backgroundColor: '#D01C1F',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    borderRadius: 12, // More rounded corners
+    paddingVertical: 15, // Taller button
+    paddingHorizontal: 30, // Wider button
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 30, // More space above button
     alignSelf: 'center',
+    shadowColor: '#D01C1F', // Shadow matching button color
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6, // Increased elevation for Android
+    width: '80%', // Set width to make button more prominent
+    maxWidth: 300, // Maximum width to maintain good proportions
   },
   addButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 18, // Larger text
     fontWeight: 'bold',
+    letterSpacing: 0.5, // Slight letter spacing
   },
 });
 

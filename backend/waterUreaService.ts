@@ -1,12 +1,12 @@
 import { firestore } from '../firebaseConfig';
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 
-const collectionName = 'water&urea';
+const collectionName = 'waterandurea';
 
 // Add a new resource
 export const addResource = async (resourceData: any) => {
   try {
-    const docRef = await addDoc(collection(firestore, 'water&urea'), resourceData);
+    const docRef = await addDoc(collection(firestore, 'waterandurea'), resourceData);
     console.log('Resource added with ID: ', docRef.id);
     return docRef.id;
   } catch (error) {

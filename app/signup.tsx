@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TouchableOpacity, StyleSheet, TextInput, 
-  SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView 
+  SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, BackHandler 
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
@@ -28,6 +28,15 @@ const SignUp: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [error]);
+
+  useEffect(() => {
+    const backAction = () => {
+      router.replace('/dashboard');
+      return true;
+    };
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => backHandler.remove();
+  }, []);
 
   const handleSignUp = async () => {
     if (password !== confirmPassword) {
@@ -153,12 +162,12 @@ const SignUp: React.FC = () => {
               {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.signupButtonText}>Sign Up</Text>}
             </TouchableOpacity>
 
-            <View style={styles.helpContainer}>
+            {/* <View style={styles.helpContainer}>
               <Text style={styles.helpText}>Need assistance? </Text>
               <TouchableOpacity>
                 <Text style={styles.helpLink}>Contact Support</Text>
               </TouchableOpacity>
-            </View>
+            </View> */}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

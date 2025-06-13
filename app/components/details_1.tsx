@@ -9,6 +9,8 @@ import {
   BackHandler,
   Alert,
   Platform,
+  Linking,
+  Modal,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
@@ -28,9 +30,14 @@ import {
   X,
   LucideProps,
 } from 'lucide-react-native';
+
+import * as DocumentPicker from 'expo-document-picker'; // Use expo-document-picker
+
 import { getVehicle, updateVehicle } from '../../backend/vehicleService';
 import { auth, firestore } from '../../firebaseConfig';
-import { getDoc, doc } from 'firebase/firestore';
+import { getDoc, doc, deleteDoc } from 'firebase/firestore';
+
+
 
 interface Vehicle {
   id: string;
@@ -45,6 +52,7 @@ interface Vehicle {
   taxPaidTill: string;
   owner: string;
   vehicleType: string;
+  pdfUrls?: { [key: string]: string };
 }
 
 interface DetailSectionProps {
@@ -72,39 +80,57 @@ interface DetailItemProps {
   onChangeText?: (text: string) => void;
 }
 
-const DetailItem: React.FC<DetailItemProps> = ({
+const DetailItem: React.FC<DetailItemProps & { pdfUrl?: string; onPdfRemove?: () => void; onPdfReplace?: (file: { assets: { uri: string; name: string }[]; canceled?: boolean }) => void }> = ({
   label,
   value,
   icon: Icon,
   isDate = false,
   editable = false,
   onChangeText,
+  pdfUrl,
+  onPdfRemove,
+  onPdfReplace,
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
-
-  let statusColor = '#2D3748';
-  let statusIcon = null;
-
-  if (isDate) {
-    const expiryDate = new Date(value);
-    const today = new Date();
-    const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (daysUntilExpiry <= 0) {
-      statusColor = '#DC2626';
-      statusIcon = <AlertTriangle size={16} color="#DC2626" style={styles.statusIcon} />;
-    } else if (daysUntilExpiry <= 30) {
-      statusColor = '#F59E0B';
-      statusIcon = <Clock size={16} color="#F59E0B" style={styles.statusIcon} />;
-    }
-  }
+  const [downloading, setDownloading] = useState(false);
 
   const handleDateChange = (event: any, selectedDate: Date | undefined) => {
     setShowDatePicker(false);
-
     if (event.type === 'set' && selectedDate && onChangeText) {
       const formattedDate = selectedDate.toISOString().split('T')[0];
       onChangeText(formattedDate);
+    }
+  };
+
+  const clearDate = () => {
+    if (onChangeText) {
+      onChangeText('');
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!pdfUrl) return;
+    setDownloading(true);
+    try {
+      await Linking.openURL(pdfUrl);
+    } catch (e) {
+      Alert.alert('Open Failed', 'Could not open PDF in browser.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handlePickPdf = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: false });
+      if (!res.canceled && res.assets && res.assets.length > 0 && onPdfReplace) {
+        onPdfReplace({
+          assets: [{ uri: res.assets[0].uri, name: res.assets[0].name }],
+          canceled: false,
+        });
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Could not pick PDF.');
     }
   };
 
@@ -114,30 +140,83 @@ const DetailItem: React.FC<DetailItemProps> = ({
         <Icon size={16} color="#0A3D91" />
       </View>
       <Text style={styles.detailLabel}>{label}:</Text>
-      <View style={styles.valueContainer}>
-        {editable && isDate ? (
-          <>
-            <TouchableOpacity
-              style={[styles.datePickerButton, { borderColor: statusColor }]}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Text style={[styles.detailValue, { color: statusColor }]}>
-                {value || 'Select Date'}
-              </Text>
-            </TouchableOpacity>
-            {showDatePicker && (
-              <DateTimePicker
-                value={value ? new Date(value) : new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                onChange={handleDateChange}
-              />
+      <View style={{ flex: 1 }}>
+        <View style={styles.valueContainer}>
+          {editable && isDate ? (
+            <View style={styles.dateContainer}>
+              <TouchableOpacity
+                style={[styles.datePickerButton, { borderColor: '#E2E8F0' }]}
+                onPress={() => setShowDatePicker(true)}
+                disabled={!editable}
+              >
+                <Text style={styles.detailValue}>
+                  {value || 'Select Date'}
+                </Text>
+              </TouchableOpacity>
+              {value ? (
+                <TouchableOpacity
+                  style={styles.clearDateIcon}
+                  onPress={clearDate}
+                  disabled={!editable}
+                >
+                  <X size={16} color="#DC2626" />
+                </TouchableOpacity>
+              ) : null}
+              {showDatePicker && (
+                <DateTimePicker
+                  value={value ? new Date(value) : new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  onChange={handleDateChange}
+                  disabled={!editable}
+                />
+              )}
+            </View>
+          ) : (
+            <Text style={styles.detailValue}>{value}</Text>
+          )}
+        </View>
+        {/* PDF controls for date fields only, always below the date value, and always left-aligned and wrapped */}
+        {isDate && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 8, marginLeft: 0 }}>
+            {pdfUrl ? (
+              <>
+                <TouchableOpacity
+                  style={styles.pdfDownloadButton}
+                  onPress={handleDownload}
+                  disabled={downloading}
+                >
+                  <Text style={styles.pdfButtonText}>{downloading ? '...' : 'PDF'}</Text>
+                </TouchableOpacity>
+                {editable && (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.pdfDownloadButton, { backgroundColor: '#DC2626', marginLeft: 6 }]}
+                      onPress={onPdfRemove}
+                    >
+                      <Text style={styles.pdfButtonText}>Remove</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.pdfDownloadButton, { backgroundColor: '#398AB9', marginLeft: 6 }]}
+                      onPress={handlePickPdf}
+                    >
+                      <Text style={styles.pdfButtonText}>Replace</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </>
+            ) : (
+              editable && (
+                <TouchableOpacity
+                  style={[styles.pdfDownloadButton, { backgroundColor: '#398AB9' }]}
+                  onPress={handlePickPdf}
+                >
+                  <Text style={styles.pdfButtonText}>Add PDF</Text>
+                </TouchableOpacity>
+              )
             )}
-          </>
-        ) : (
-          <Text style={[styles.detailValue, { color: isDate ? statusColor : '#2D3748' }]}>{value}</Text>
+          </View>
         )}
-        {statusIcon}
       </View>
     </View>
   );
@@ -153,9 +232,9 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Vehicle | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState('');
   const [invalidFields, setInvalidFields] = useState<string[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const fetchVehicleDetails = async () => {
     try {
@@ -168,10 +247,55 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
       } else {
         setError('Vehicle not found.');
       }
+
+      const user = auth.currentUser;
+      if (user) {
+        const userDoc = await getDoc(doc(firestore, 'users', user.uid));
+        if (userDoc.exists() && userDoc.data().role === 'admin') {
+          setIsAdmin(true);
+        }
+      }
     } catch (err) {
       setError('Failed to fetch vehicle details.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const uploadToCloudinary = async (file: { uri: string; name: string; type: string }) => {
+    const data = new FormData();
+    data.append('file', {
+      uri: file.uri,
+      name: file.name,
+      type: file.type,
+    } as unknown as Blob);
+    data.append('upload_preset', 'fleet_manager');
+    const response = await fetch('https://api.cloudinary.com/v1_1/dywapv8ct/raw/upload', {
+      method: 'POST',
+      body: data,
+    });
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.statusText}`);
+    }
+    const json = await response.json();
+    return json.secure_url;
+  };
+
+  const handleUploadPdf = async (file: { assets: { uri: string; name: string }[]; canceled?: boolean }, pdfKey: string) => {
+    if (!file || file.canceled || !file.assets || !file.assets[0]?.uri) {
+      Alert.alert('Error', 'No PDF selected.');
+      return;
+    }
+    try {
+      const { uri, name } = file.assets[0];
+      const secureUrl = await uploadToCloudinary({ uri, name, type: 'application/pdf' });
+      setFormData((prev) => prev ? {
+        ...prev,
+        pdfUrls: { ...prev.pdfUrls, [pdfKey]: secureUrl }
+      } : prev);
+      Alert.alert('Success', 'PDF uploaded successfully.');
+    } catch (e) {
+      Alert.alert('Upload Failed', 'Could not upload PDF.');
     }
   };
 
@@ -221,6 +345,30 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
     setIsEditing(false);
   };
 
+  const handleDelete = async () => {
+    Alert.alert(
+      'Delete Vehicle',
+      'Are you sure you want to delete this vehicle? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(firestore, 'vehicles', id));
+              Alert.alert('Success', 'Vehicle deleted successfully.');
+              onBack();
+            } catch (error) {
+              console.error('Error deleting vehicle:', error);
+              Alert.alert('Error', 'Failed to delete the vehicle. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   useEffect(() => {
     fetchVehicleDetails();
 
@@ -228,19 +376,6 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
       onBack();
       return true;
     });
-
-    const checkAdmin = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const userDoc = await getDoc(doc(firestore, 'users', user.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setIsAdmin(userData.role === 'admin');
-        }
-      }
-    };
-
-    checkAdmin();
 
     return () => backHandler.remove();
   }, [id, onBack]);
@@ -292,6 +427,7 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
           icon={User}
           editable={isEditing}
           onChangeText={(text) => formData && setFormData({ ...formData, owner: text } as Vehicle)}
+          pdfUrl={formData?.pdfUrls?.owner}
         />
         <DetailItem
           label="Registration Date"
@@ -300,6 +436,11 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
           isDate={true}
           editable={isEditing}
           onChangeText={(text) => formData && setFormData({ ...formData, registrationDate: text } as Vehicle)}
+          pdfUrl={formData?.pdfUrls?.registrationDate}
+          onPdfRemove={isEditing ? () => {
+            setFormData((prev) => prev ? { ...prev, pdfUrls: { ...prev.pdfUrls, registrationDate: '' } } : prev);
+          } : undefined}
+          onPdfReplace={isEditing ? async (file) => handleUploadPdf(file, 'registrationDate') : undefined}
         />
       </DetailSection>
 
@@ -311,6 +452,11 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
           isDate={true}
           editable={isEditing}
           onChangeText={(text) => formData && setFormData({ ...formData, pollutionExpiry: text } as Vehicle)}
+          pdfUrl={formData?.pdfUrls?.pollutionExpiry}
+          onPdfRemove={isEditing ? () => {
+            setFormData((prev) => prev ? { ...prev, pdfUrls: { ...prev.pdfUrls, pollutionExpiry: '' } } : prev);
+          } : undefined}
+          onPdfReplace={isEditing ? async (file) => handleUploadPdf(file, 'pollutionExpiry') : undefined}
         />
         <DetailItem
           label="AITP Expiry"
@@ -319,6 +465,11 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
           isDate={true}
           editable={isEditing}
           onChangeText={(text) => formData && setFormData({ ...formData, aitpExpiry: text } as Vehicle)}
+          pdfUrl={formData?.pdfUrls?.aitpExpiry}
+          onPdfRemove={isEditing ? () => {
+            setFormData((prev) => prev ? { ...prev, pdfUrls: { ...prev.pdfUrls, aitpExpiry: '' } } : prev);
+          } : undefined}
+          onPdfReplace={isEditing ? async (file) => handleUploadPdf(file, 'aitpExpiry') : undefined}
         />
         <DetailItem
           label="Insurance Expiry"
@@ -327,6 +478,11 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
           isDate={true}
           editable={isEditing}
           onChangeText={(text) => formData && setFormData({ ...formData, insuranceExpiry: text } as Vehicle)}
+          pdfUrl={formData?.pdfUrls?.insuranceExpiry}
+          onPdfRemove={isEditing ? () => {
+            setFormData((prev) => prev ? { ...prev, pdfUrls: { ...prev.pdfUrls, insuranceExpiry: '' } } : prev);
+          } : undefined}
+          onPdfReplace={isEditing ? async (file) => handleUploadPdf(file, 'insuranceExpiry') : undefined}
         />
         <DetailItem
           label="Fitness Expiry"
@@ -335,6 +491,11 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
           isDate={true}
           editable={isEditing}
           onChangeText={(text) => formData && setFormData({ ...formData, fitnessExpiry: text } as Vehicle)}
+          pdfUrl={formData?.pdfUrls?.fitnessExpiry}
+          onPdfRemove={isEditing ? () => {
+            setFormData((prev) => prev ? { ...prev, pdfUrls: { ...prev.pdfUrls, fitnessExpiry: '' } } : prev);
+          } : undefined}
+          onPdfReplace={isEditing ? async (file) => handleUploadPdf(file, 'fitnessExpiry') : undefined}
         />
       </DetailSection>
 
@@ -346,6 +507,11 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
           isDate={true}
           editable={isEditing}
           onChangeText={(text) => formData && setFormData({ ...formData, permitPaidTill1: text } as Vehicle)}
+          pdfUrl={formData?.pdfUrls?.permitPaidTill1}
+          onPdfRemove={isEditing ? () => {
+            setFormData((prev) => prev ? { ...prev, pdfUrls: { ...prev.pdfUrls, permitPaidTill1: '' } } : prev);
+          } : undefined}
+          onPdfReplace={isEditing ? async (file) => handleUploadPdf(file, 'permitPaidTill1') : undefined}
         />
         <DetailItem
           label="5 Year Permit Till"
@@ -354,6 +520,11 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
           isDate={true}
           editable={isEditing}
           onChangeText={(text) => formData && setFormData({ ...formData, permitPaidTill2: text } as Vehicle)}
+          pdfUrl={formData?.pdfUrls?.permitPaidTill2}
+          onPdfRemove={isEditing ? () => {
+            setFormData((prev) => prev ? { ...prev, pdfUrls: { ...prev.pdfUrls, permitPaidTill2: '' } } : prev);
+          } : undefined}
+          onPdfReplace={isEditing ? async (file) => handleUploadPdf(file, 'permitPaidTill2') : undefined}
         />
         <DetailItem
           label="Tax Paid Till"
@@ -362,30 +533,39 @@ const Details: React.FC<DetailsProps> = ({ id, onBack }) => {
           isDate={true}
           editable={isEditing}
           onChangeText={(text) => formData && setFormData({ ...formData, taxPaidTill: text })}
+          pdfUrl={formData?.pdfUrls?.taxPaidTill}
+          onPdfRemove={isEditing ? () => {
+            setFormData((prev) => prev ? { ...prev, pdfUrls: { ...prev.pdfUrls, taxPaidTill: '' } } : prev);
+          } : undefined}
+          onPdfReplace={isEditing ? async (file) => handleUploadPdf(file, 'taxPaidTill') : undefined}
         />
       </DetailSection>
 
-      {isAdmin && (
-        <View style={styles.buttonContainer}>
-          {isEditing ? (
-            <>
-              <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                <Save size={20} color="#FFFFFF" />
-                <Text style={styles.buttonText}>Save</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-                <X size={20} color="#FFFFFF" />
-                <Text style={styles.buttonText}>Cancel</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <TouchableOpacity style={styles.modifyButton} onPress={() => setIsEditing(true)}>
-              <Edit3 size={20} color="#FFFFFF" />
-              <Text style={styles.buttonText}>Modify</Text>
+      <View style={styles.buttonContainer}>
+        {isEditing ? (
+          <>
+            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+              <Save size={20} color="#FFFFFF" />
+              <Text style={styles.buttonText}>Save</Text>
             </TouchableOpacity>
-          )}
-        </View>
-      )}
+            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+              <X size={20} color="#FFFFFF" />
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+            {isAdmin && (
+              <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+                <X size={20} color="#FFFFFF" />
+                <Text style={styles.buttonText}>Delete</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        ) : (
+          <TouchableOpacity style={styles.modifyButton} onPress={() => setIsEditing(true)}>
+            <Edit3 size={20} color="#FFFFFF" />
+            <Text style={styles.buttonText}>Modify</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </ScrollView>
   );
 };
@@ -431,6 +611,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 5,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   vehicleInfo: {
     flex: 1,
@@ -482,9 +664,11 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     backgroundColor: '#F0F4F8',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: '#0A3D91',
   },
   detailLabel: {
     flex: 1,
@@ -494,8 +678,9 @@ const styles = StyleSheet.create({
   valueContainer: {
     flex: 1,
     flexDirection: 'row',
-    justifyContent: 'flex-start',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    position: 'relative',
   },
   detailValue: {
     fontSize: 14,
@@ -515,6 +700,37 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
+  },
+  clearDateIcon: {
+    marginLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#DC2626',
+    backgroundColor: '#FFFFFF',
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pdfDownloadButton: {
+    backgroundColor: '#0A3D91',
+    borderRadius: 6,
+    paddingVertical: 2,
+    paddingHorizontal: 10,
+    marginLeft: 0,
+    marginRight: 8,
+    marginBottom: 6,
+    maxWidth: 110,
+    alignItems: 'center',
+  },
+  pdfButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 13,
   },
   errorContainer: {
     flex: 1,
@@ -561,6 +777,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3B82F6',
+    padding: 12,
+    borderRadius: 8,
+    marginHorizontal: 8,
+  },
+  deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#DC2626',

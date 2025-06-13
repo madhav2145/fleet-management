@@ -28,25 +28,32 @@ const HomeLayout = () => {
         }}
       />
       <Drawer.Screen
+        name="jobcard"
+        options={{
+          drawerLabel: () => <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Job Card</Text>,
+          title: 'Job Card',
+        }}
+      />
+      <Drawer.Screen
         name="search"
         options={{
           drawerLabel: () => <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Search</Text>,
           title: 'Search',
         }}
       />
-      {/* <Drawer.Screen
-        name="notifications"
+      <Drawer.Screen
+        name="drivers"
         options={{
-          drawerLabel: () => <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Notifications</Text>,
-          title: 'Notifications',
+          drawerLabel: () => <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Drivers</Text>,
+          title: 'Drivers',
         }}
-      /> */}
-
-<Drawer.Screen
-        name="addwater&urea"
+      />
+    
+    <Drawer.Screen
+        name="inventory"
         options={{
-          drawerLabel: () => <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Add Water/Urea status</Text>,
-          title: 'Add Water/Urea status',
+          drawerLabel: () => <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Inventory</Text>,
+          title: 'Inventory',
         }}
       />
     </Drawer>

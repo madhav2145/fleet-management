@@ -40,6 +40,5 @@ app-example
 # Add .env to .gitignore
 .env
 
-google-services.json
 
 fleet-management-8a230-firebase-adminsdk-fbsvc-519dbddd6a.json

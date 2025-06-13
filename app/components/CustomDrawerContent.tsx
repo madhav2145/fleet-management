@@ -2,33 +2,46 @@ import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawe
 import { useRouter } from 'expo-router';
 import { View, Text, StyleSheet, Alert, TouchableOpacity, Image } from 'react-native';
 import React, { useEffect, useState } from 'react';
-import { signOut } from 'firebase/auth';
 import { auth } from '../../firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { doc, getDoc } from 'firebase/firestore';
+import { firestore } from '../../firebaseConfig'; // Import Firestore configuration
 
 const CustomDrawerContent = (props: any) => {
   const router = useRouter();
-  const [user, setUser] = useState({ name: 'John Doe', email: 'johndoe@example.com' });
+  const [email, setEmail] = useState<string | null>(null); // State to store the user's email
 
   useEffect(() => {
-    const fetchUserData = async () => {
+    const fetchUserEmail = async () => {
       try {
-        const userData = await AsyncStorage.getItem('userData'); // Example key
-        if (userData) {
-          setUser(JSON.parse(userData));
+        const user = auth.currentUser; // Get the currently logged-in user
+        if (!user) {
+          console.error('No logged-in user found.');
+          return;
+        }
+
+        // Fetch the user's email from Firestore
+        const userRef = doc(firestore, 'users', user.uid); // Use UID as the document ID
+        const userDoc = await getDoc(userRef);
+
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setEmail(userData.email || user.email); // Use email from Firestore or fallback to Firebase auth email
+        } else {
+          console.error('User document does not exist.');
         }
       } catch (error) {
-        console.error('Error fetching user data:', error);
+        console.error('Error fetching user email:', error);
       }
     };
 
-    fetchUserData();
+    fetchUserEmail();
   }, []);
 
   const handleLogout = async () => {
     Alert.alert(
       'Logout',
-      'Are you sure you want to log out?',
+      'Are you sure you want to log out from this module?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -36,9 +49,8 @@ const CustomDrawerContent = (props: any) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await signOut(auth);
-              await AsyncStorage.removeItem('userToken');
-              router.replace('/login');
+              // Only navigate to dashboard, do not sign out
+              router.replace('/dashboard');
             } catch (error) {
               console.error('Error logging out: ', error);
               Alert.alert('Error', 'Failed to log out. Please try again.');
@@ -60,21 +72,13 @@ const CustomDrawerContent = (props: any) => {
           resizeMode="cover"
           onError={(error) => console.error('Failed to load profile image:', error.nativeEvent.error)}
         />
-        <Text style={styles.username}>{user.name}</Text>
-        <Text style={styles.email}>{user.email}</Text>
+        <Text style={styles.email}>{email || 'Loading...'}</Text>
       </View>
 
       {/* Drawer Items */}
       <DrawerContentScrollView {...props}>
         <DrawerItemList {...props} />
       </DrawerContentScrollView>
-
-      {/* Footer Section */}
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutLabel}>Logout</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 };
@@ -94,31 +98,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     backgroundColor: '#E2E8F0',
   },
-  username: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#0A3D91',
-  },
   email: {
     fontSize: 14,
     color: '#5A7184',
-  },
-  footer: {
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  logoutButton: {
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: '#D01C1F',
-    borderRadius: 8,
-  },
-  logoutLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
   },
 });
 

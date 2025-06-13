@@ -8,6 +8,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../firebaseConfig';
+import { doc, setDoc, updateDoc, arrayUnion, arrayRemove, Firestore } from 'firebase/firestore';
+import { firestore } from '../../firebaseConfig';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 
 interface StatCardProps {
   label: string;
@@ -64,6 +68,8 @@ const Home: React.FC = () => {
   }
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [pushToken, setPushToken] = useState<string | null>(null); // State to store the push token
+  const [errorMessage, setErrorMessage] = useState<string | null>(null); // State to store error messages
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const router = useRouter();
   const segments = useSegments();
@@ -77,32 +83,89 @@ const Home: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    console.log('useEffect is being called...');
+    const requestNotifications = async () => {
+      console.log('Calling registerForPushNotificationsAsync...');
+      await registerForPushNotificationsAsync();
+    };
+
+    requestNotifications();
+  }, []);
+
+  useEffect(() => {
     const backAction = () => {
       const currentRoute = segments.join('/');
-
       if (currentRoute === '(module_1)/home') {
-        Alert.alert('Minimize App', 'Do you want to minimize the app?', [
-          {
-            text: 'Cancel',
-            onPress: () => null,
-            style: 'cancel',
-          },
-          {
-            text: 'Yes',
-            onPress: () => BackHandler.exitApp(),
-          },
-        ]);
+        router.replace('/dashboard');
         return true;
       } else {
         router.replace('/(module_1)/home');
         return true;
       }
     };
-
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-
     return () => backHandler.remove();
   }, [segments]);
+
+  const registerForPushNotificationsAsync = async () => {
+    try {
+      console.log('registerForPushNotificationsAsync is being called...');
+
+      if (!Device.isDevice) {
+        setErrorMessage('Push notifications are only supported on physical devices.');
+        console.log('Push notifications are not supported on this device.');
+        return;
+      }
+
+      // Check existing notification permissions
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      console.log('Existing notification permission status:', existingStatus);
+
+      let finalStatus = existingStatus;
+
+      // Request permissions if not already granted
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+        console.log('New notification permission status:', finalStatus);
+      }
+
+      // If permissions are still not granted, show an error
+      if (finalStatus !== 'granted') {
+        setErrorMessage('Failed to get push token for push notifications. Please grant notification permissions.');
+        console.log('Notification permissions not granted.');
+        return;
+      }
+
+      // Get the Expo push token
+      const expoPushToken = (await Notifications.getExpoPushTokenAsync()).data;
+      console.log('Generated Expo Push Token:', expoPushToken);
+
+      setPushToken(expoPushToken); // Save the push token to state
+      console.log('Push token saved to state:', expoPushToken);
+
+      setErrorMessage(null); // Clear any previous error messages
+
+      // Save the token to Firestore
+      const user = auth.currentUser;
+      if (!user) {
+        setErrorMessage('No logged-in user found.');
+        console.log('No logged-in user found.');
+        return;
+      }
+
+      const userRef = doc(firestore, 'users', user.uid);
+      await setDoc(
+        userRef,
+        { pushToken: arrayUnion(expoPushToken) },
+        { merge: true }
+      );
+      console.log('Expo push token added successfully in Firestore.');
+    } catch (error) {
+      console.error('Error registering for push notifications:', error);
+      setErrorMessage('An error occurred while generating the push token.');
+    }
+  };
 
   const fetchVehicles = async () => {
     try {
@@ -142,6 +205,7 @@ const Home: React.FC = () => {
     try {
       await signOut(auth);
       await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('hasRequestedNotifications'); // Reset the flag on logout
       router.replace('/');
     } catch (error) {
       console.error('Error logging out: ', error);
@@ -332,6 +396,47 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  tokenContainer: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  tokenLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#0A3D91',
+    marginBottom: 8,
+  },
+  tokenValue: {
+    fontSize: 14,
+    color: '#5A7184',
+  },
+  errorContainer: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#FFE4E6',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#D01C1F',
+    fontWeight: 'bold',
+  },
 });
 
 export default Home;
+
+function customDoc(firestore: Firestore, arg1: string, uid: string) {
+  throw new Error('Function not implemented.');
+}

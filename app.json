@@ -1,59 +1,63 @@
-
-
 {
   "expo": {
     "name": "RKT Insight",
-    "slug": "RKT_Insight",
+    "slug": "rkt-insight",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/app_logo.png", 
+    "icon": "./assets/images/app_logo(1).png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSUserNotificationUsageDescription": "This app uses notifications to alert you about important updates."
+        "NSUserNotificationUsageDescription": "This app uses notifications to alert you about important updates.",
+        "NSCameraUsageDescription": "We need camera access to scan vehicle documents."
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/app_logo.png", 
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/app_logo(1).png",
+        "backgroundColor": "#F5F5F5"
       },
-      "package": "com.madhav222.RKT_Insight",
+      "package": "com.madhav2145.Project_Expo",
       "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.SCHEDULE_EXACT_ALARM"
-      ]
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "INTERNET"
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/app_logo.png"
+      "favicon": "./assets/images/app_logo(1).png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/app_logo(1).png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-notifications"
     ],
-    "experiments": {
-      "typedRoutes": true
-    },
+    
     "extra": {
       "router": {
         "origin": false
       },
       "eas": {
-        "projectId": "974cefba-be1d-4e1d-956c-293719b18492"
+        "projectId": "4fc8170d-505a-4ccf-8b67-5cca561b32f8"
       }
-    }
+    },
+    "owner": "madhav2145"
   }
 }
