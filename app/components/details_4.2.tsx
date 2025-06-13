@@ -144,7 +144,8 @@ const VehicleHealthReport: React.FC<Details4_2Props> = ({ vehicleId, onBack }) =
     };
     const getHealthReportFromGemini = async (vehicleData: any, maintenanceData: any) => {
       try {
-        const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBWGyUEs6hKXOBe43Dij7W789BBlWPvGV8';
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
         // Compose a detailed prompt for system analysis
         const prompt = `Given the following vehicle and its last maintenance jobcard, generate a health report in the following JSON format:
 
